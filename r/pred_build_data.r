@@ -58,15 +58,22 @@ suff_veg = paste0('12taxa_6341cells_', nknots, 'knots')
 path_grid = 'data/grid/umw_3by_v2.rdata'
 
 path_pls      = 'data/pls_umw_v0.6.csv'
+
 path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
+
+# Only non-varve lakes of interest
+#path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
 
 if (bchron){
   path_age_samples    = 'data/bchron_ages'
 } else {
   path_age_samples    = 'data/bacon_ages'
 }
+
 path_cal      = paste0('data/calibration/', runs[[1]]$suff_fit,'.csv')
 path_veg_data = paste0('data/veg_data_', suff_veg, '_v0.4.rdata')
+
+
 # path_veg_pars = paste0('data/', suff_veg, '_nb_v0.5/veg_pars_', nknots, 'knots.rdata') #HO -This is not a file or directory that exists. Replacing with what I think is correct
 path_veg_pars = 'data/veg_pars_120knots.rdata'
 ##########################################################################################################################
@@ -85,12 +92,15 @@ pls.raw = data.frame(read.table(file=path_pls, sep=",", row.names=1, header=TRUE
 
 # pollen data
 pollen_ts = read.table(path_pollen, header=TRUE, sep=',', stringsAsFactors=FALSE)
+# FS - each lake has unique id and multiple bacon_draw#
 pol_ids = data.frame(id=unique(pollen_ts$id), stat_id=seq(1, length(unique(pollen_ts$id))))
 
 # if draw=TRUE then replace mean age_bacon with draw age_bacon
 if (draw) {
   all_files   = list.files(path_age_samples)
   all_drawRDS = all_files[grep('draw', all_files)]
+  
+  # FS - randomply choses one draw index
   drawRDS     = all_drawRDS[sample(seq(1, length(all_drawRDS)), 1)]   # random sample from available posterior age draws
   
   age_sample   = readRDS(file.path(path_age_samples, drawRDS))
@@ -107,6 +117,7 @@ if (bchron){
 } else {
   pollen_ts = pollen_ts[!is.na(pollen_ts$age_bacon),]
 }
+
 
 # max_ages
 if (constrain){
@@ -138,6 +149,7 @@ veg_post = readRDS(file=path_veg_pars)
 ## read in and organize pls data
 ##########################################################################################################################
 
+# changes taxa names to lower case
 colnames(pls.raw) = tolower(colnames(pls.raw))
 
 # pull the subset of proportions
@@ -152,26 +164,50 @@ taxa.start.col = min(match(tolower(rownames(convert)), colnames(pls.raw)), na.rm
 #   counts = data.frame(pls_dat_collapse[,sort(colnames(pls_dat_collapse))])
 # }
 
+# FS - raw pollen couts for each taxa
 counts = pls.raw[,taxa.start.col:ncol(pls.raw)]
+
+# FS - geographical location of each count
 meta   = pls.raw[,1:(taxa.start.col-1)]
 # kilometers
 # pls$X = pls$X/1000
 # pls$Y = pls$Y/1000
 
+# FS - use the new function
+# create collumns state (minnesota, south dakatoa, north dakota, iowa, na, wiconsin, michigan:north, illinois, michigan:south, indiana, ohio)
+# and state2 (minnesota, wisconsin, michigan:north, and michigan:south) the corrected map look up
 meta        = split_mi(meta)
+
+# only keep counts/meta that are in the corrected "minnesota" "wisconsin" "michigan:north" (states_pls)
 counts      = counts[which(meta$state2 %in% states_pls),]
 meta        = meta[which(meta$state2 %in% states_pls),]
 
-centers_pls = data.frame(x=meta$x, y=meta$y)/rescale # megameters!
-plot(centers_pls[,1]*rescale, centers_pls[,2]*rescale, asp=1, axes=F,  col='antiquewhite4', xlab='',ylab='', pch=19, cex=0.2)
-plot(us.shp, add=T)
 
+centers_pls = data.frame(x=meta$x, y=meta$y)/rescale # megameters!
+
+# FS - Corrected for SP object; checks that seperated out the correct uppermidwest cells
+# plot(centers_pls[,1]*rescale, centers_pls[,2]*rescale, asp=1, axes=F,  col='antiquewhite4', xlab='',ylab='', pch=19, cex=0.2) # old code
+# plot(us.shp, add=T) # old code
+# plots center of pls grid cells (8 km x 8 km)
+plot(centers_pls[,1] * rescale,
+     centers_pls[,2] * rescale,
+     asp = 1,
+     axes = FALSE,
+     col = "antiquewhite4",
+     pch = 19,
+     cex = 0.2)
+# adds borders
+plot(st_geometry(us.shp), add = TRUE, border = "black", lwd = 0.5)
+
+# FS - aggreg raw pollen count data into 12 taxa (including OTHER group)
 y_veg = convert_counts(counts, tree_type, taxa_sub)
 
+# FS - removes collumn names, creating counts as ordered matrix
 taxa = colnames(y_veg)
 y_veg = as.matrix(round(unname(y_veg)))
 rownames(y_veg) = NULL
 y_veg = unname(y_veg)
+
 # y = y_build(counts, taxa_sub) # fix this if we want to use a subset of taxa
 
 K = as.integer(ncol(y_veg))
@@ -184,13 +220,48 @@ N_pls = nrow(y_veg)
 ##########################################################################################################################
 ## chunk: read in coarse grid and pollen data
 ##########################################################################################################################
+# ---- FS made domain wisconsin? 
+# library(sf)
+# library(rnaturalearth)
+# library(rnaturalearthdata)
+# 
+# # Get US states
+# us_states <- ne_states(country = "United States of America", returnclass = "sf")
+# 
+# # Subset Wisconsin
+# wi <- us_states[us_states$name == "Wisconsin", ]
+# 
+# # Transform to Albers Equal Area (EPSG 5070)
+# wi_albers <- st_transform(wi, 5070)
+# 
+# # Extract coordinates as a data frame
+# domain <- st_coordinates(wi_albers)[, 1:2]
+# domain <- data.frame(lat = domain[,1], long = domain[,2])
+# 
+# head(domain)
+### ---- end of FS work
+
+# FS - created domain of uppermidwest form PLS grid centers
+states_pls <- c("wisconsin", "michigan:north","minnesota")
+domain <- meta[meta$state2 %in% states_pls, c("x", "y")]
 
 # FIXME: ADD STATE TO GRID
 # coarse_domain  = coarse_domain[coarse_domain$state %in% states_pls,]
 coarse_centers = domain[,1:2]
 
-plot(coarse_centers[,1]*rescale, coarse_centers[,2]*rescale, col='blue')
-plot(us.shp, add=TRUE)
+# check domain working with
+plot(coarse_centers[,1] * rescale,
+     coarse_centers[,2] * rescale,
+     col = "blue",
+     pch = 19,
+     cex = 0.3,
+     asp = 1,
+     axes = FALSE,
+     xlab = "",
+     ylab = "")
+plot(st_geometry(us.shp), add = TRUE, border = "black")
+
+
 
 # assign grid to centers_veg
 centers_veg = coarse_centers
@@ -205,20 +276,36 @@ yhi = max(centers_veg$y)
 ##########################################################################################################################
 ## chunk: reorganize pollen data
 ##########################################################################################################################
+
 # set tamarack to 0 at tamarack creek; see Dawson et al. QSR 2016
 pollen_ts[pollen_ts$id == 2624, 'TAMARACK'] = rep(0, sum(pollen_ts$id == 2624))
 
 saveRDS(pollen_ts, file='data/pollen_ts.RDS')
 
+# FS - only keep sites in "minnesota"      "wisconsin"      "michigan:north"
 pollen_ts1 = pollen_ts[which(pollen_ts$state %in% states_pol),]
+colnames(pollen_ts1)
 
+# FS - had to edit this function to use sf instead
 # reproject pollen coords from lat long to Albers
 pollen_ts2 = pollen_to_albers(pollen_ts1)
-
+# FS - location of pollen
 pollen_locs = cbind(pollen_ts2$x, pollen_ts2$y)
 
-pollen_int  = cores_near_domain(pollen_locs, centers_veg, cell_width = res*8000/rescale)
+# FS - checks that the pollen sitees are within the vegetation domain
+plot(centers_veg$x, centers_veg$y, col='green', pch=19, main='Vegetation vs Pollen')
+points(pollen_locs[,1], pollen_locs[,2], col='red', pch=19)
 
+
+
+
+# FS - FIX ME - currently no matches ie no cores in the domain
+#pollen_int  = cores_near_domain(pollen_locs, centers_veg, cell_width = res*8000/rescale)
+cell_width_value <- 8000   #  FS - changed!!!!
+pollen_int <- cores_near_domain(pollen_locs, centers_veg, cell_width = cell_width_value)
+
+# FS - Keep only pollen points that exactly match the coordinates in pollen_int
+# FS - idx_pollen_int is a logical vector used to filter pollen_ts2 to these points
 idx_pollen_int = apply(pollen_locs, 1, 
                        function(x) if (any(rdist(x, pollen_int) < 1e-8)) {return(TRUE)} else {return(FALSE)})
 pollen_ts3 = pollen_ts2[idx_pollen_int, ]
@@ -274,6 +361,7 @@ for (i in 1:N_cores){
   print(idx)
   centers_pol[i,] = c(meta_pol$x[idx], meta_pol$y[idx])  
 }
+
 
 # some are duplicates, but we still need them as separate rows!
 # centers_pol <- meta_pol[!duplicated(cbind(meta_pol$x, meta_pol$y)), c('x', 'y')]
