@@ -1,3 +1,5 @@
+# FS- working directory
+setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology")
 
 res  = 3
 
@@ -56,3 +58,4 @@ if (draw){
   dr = 1
   source('r/pred_build_data.r')
 }
+

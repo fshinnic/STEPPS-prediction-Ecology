@@ -297,8 +297,6 @@ plot(centers_veg$x, centers_veg$y, col='green', pch=19, main='Vegetation vs Poll
 points(pollen_locs[,1], pollen_locs[,2], col='red', pch=19)
 
 
-
-
 # FS - FIX ME - currently no matches ie no cores in the domain
 #pollen_int  = cores_near_domain(pollen_locs, centers_veg, cell_width = res*8000/rescale)
 cell_width_value <- 8000   #  FS - changed!!!!
@@ -310,7 +308,7 @@ idx_pollen_int = apply(pollen_locs, 1,
                        function(x) if (any(rdist(x, pollen_int) < 1e-8)) {return(TRUE)} else {return(FALSE)})
 pollen_ts3 = pollen_ts2[idx_pollen_int, ]
 
-# plot domain and core locations 
+# FS - plot domain and core locations in Wisconsin, upper michican, and minnesota
 par(mfrow=c(1,1))
 plot(centers_veg$x*rescale, centers_veg$y*rescale)
 points(pollen_ts3$x*rescale, pollen_ts3$y*rescale, col='blue', pch=19)
@@ -319,6 +317,9 @@ plot(us.shp, add=T, lwd=2)
 ##########################################################################################################################
 ## chunk: prepare pollen data; aggregate over time intervals
 ##########################################################################################################################
+# FS - START HERE 12/26/2025
+# FS - Moved x and y columns to front so that they aren't lost in build_pollen_counts function
+pollen_ts3 <- pollen_ts3[, c("id", "x", "y", setdiff(colnames(pollen_ts3), c("id","x","y")))]
 
 # sum counts over int length intervals
 pollen_agg = build_pollen_counts(tmin=tmin, tmax=tmax, int=int, pollen_ts=pollen_ts3, taxa_all, taxa_sub, age_model=age_model)
@@ -335,14 +336,15 @@ meta_pol_all$stat_id = pol_ids$stat_id[match(meta_pol_all$id, pol_ids$id)]
 
 pollen_ts$stat_id = pol_ids$stat[match(pollen_ts$id, pol_ids$id)]
 
-ages    = unique(sort(meta_pol$age))
+ages    = unique(sort(meta_pol$age)) # FS - only 21, each = 100 years
 T       = length(ages) 
 if (one_time) {
   lag = 0
 } else {
   lag     = unname(as.matrix(dist(matrix(ages), upper=TRUE)))
 }
-N_cores = length(unique(meta_pol$id))
+
+N_cores = length(unique(meta_pol$id)) # FS - 199
 
 y = convert_counts(counts, tree_type, taxa_sub)
 
@@ -355,6 +357,7 @@ if (sum(colnames(y) %in% taxa) != K){
 y = unname(y)
 
 centers_pol = data.frame(x=numeric(N_cores), y=numeric(N_cores))
+
 for (i in 1:N_cores){
   id = unique(meta_pol$id)[i]
   idx = min(which(meta_pol$id == id))
@@ -375,9 +378,10 @@ points(centers_pol$x*rescale, centers_pol$y*rescale, col='blue', pch=4, cex=1.4)
 plot(us.shp, add=TRUE)
 
 # check domain splitting
+# FS - pollen chick doesn't exist
 idx_cores_all <- build_idx_cores(cbind(pollen_check$x, pollen_check$y), centers_veg, N_cores=nrow(pollen_check))
 
-##########################################################################################################################
+c##########################################################################################################################
 ## chunk 3: build distance matrices
 ##########################################################################################################################
 
