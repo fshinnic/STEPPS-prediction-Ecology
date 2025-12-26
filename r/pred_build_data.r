@@ -317,7 +317,6 @@ plot(us.shp, add=T, lwd=2)
 ##########################################################################################################################
 ## chunk: prepare pollen data; aggregate over time intervals
 ##########################################################################################################################
-# FS - START HERE 12/26/2025
 # FS - Moved x and y columns to front so that they aren't lost in build_pollen_counts function
 pollen_ts3 <- pollen_ts3[, c("id", "x", "y", setdiff(colnames(pollen_ts3), c("id","x","y")))]
 
@@ -402,6 +401,8 @@ N_knots = nrow(knot_coords)
 ##########################################################################################################################
 ## pull in calibration parameters
 ##########################################################################################################################
+# FS - START HERE 12/26/2025
+
 KW     = FALSE
 KGAMMA = FALSE
 
