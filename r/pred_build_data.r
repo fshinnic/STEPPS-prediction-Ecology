@@ -92,6 +92,7 @@ pls.raw = data.frame(read.table(file=path_pls, sep=",", row.names=1, header=TRUE
 
 # pollen data
 pollen_ts = read.table(path_pollen, header=TRUE, sep=',', stringsAsFactors=FALSE)
+
 # FS - each lake has unique id and multiple bacon_draw#
 pol_ids = data.frame(id=unique(pollen_ts$id), stat_id=seq(1, length(unique(pollen_ts$id))))
 
@@ -286,7 +287,7 @@ saveRDS(pollen_ts, file='data/pollen_ts.RDS')
 pollen_ts1 = pollen_ts[which(pollen_ts$state %in% states_pol),]
 colnames(pollen_ts1)
 
-# FS - had to edit this function to use sf instead
+# FS - had to edit this function to use sf instead (rerun pollen_to_albers.r file)
 # reproject pollen coords from lat long to Albers
 pollen_ts2 = pollen_to_albers(pollen_ts1)
 # FS - location of pollen
@@ -376,6 +377,10 @@ points(centers_veg[idx_cores,'x']*rescale, centers_veg[idx_cores,'y']*rescale, c
 points(centers_pol$x*rescale, centers_pol$y*rescale, col='blue', pch=4, cex=1.4)
 plot(us.shp, add=TRUE)
 
+## SAVE ENVIORNMENT THERE TO NOT RUN POLLEN AGG AGAIN ##
+save.image("my_environment.RData")
+load("my_environment.RData")
+
 # check domain splitting
 # FS - pollen chick doesn't exist
 idx_cores_all <- build_idx_cores(cbind(pollen_check$x, pollen_check$y), centers_veg, N_cores=nrow(pollen_check))
@@ -421,6 +426,7 @@ if (draw) {
 phi = unname(cal_post[which(par_names == 'phi')][1:K])
 
 one_gamma = run$one_gamma
+
 if (one_gamma){
   gamma = unname(cal_post[which(par_names == 'gamma')])
 } else {
@@ -526,6 +532,7 @@ if (AR){
 if (!(file.exists(dirName))) {
   dir.create(dirName)
 }
+
 
 if (one_time){
   subDir=paste0('slice', tmin, 'to', tmax)
