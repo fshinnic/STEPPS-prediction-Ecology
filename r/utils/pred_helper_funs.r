@@ -681,191 +681,156 @@ get_mu <- function(post, W){
   return(mu)
 }
 
-# build_pollen_counts(tmin=tmin, tmax=tmax, int=int, pollen_ts=pollen_ts3, taxa_all, taxa_sub, bacon)
-# build pollen counts
-build_pollen_counts <- function(tmin, tmax, int, pollen_ts, taxa_all, taxa_sub, age_model){
+build_pollen_counts <- function(tmin, tmax, int,
+                                pollen_ts,
+                                taxa_all,
+                                taxa_sub,
+                                age_model){
   
-  if (age_model=='bacon') {
-    age_col = 'age_bacon'
-  } else if  (age_model=='bchron') {
-    age_col = 'age_bchron'
+  ## Choose age model column 
+  ## Currently, it appears as though the age_bacon is within 0.003452127 of the mean draws
+  ## COULD BE IMPROVED TO ADD TIME DATING
+  if (age_model == "bacon") {
+    age_col <- "age_bacon"
+  } else if (age_model == "bchron") {
+    age_col <- "age_bchron"
   } else {
-    age_col = 'age_default'
+    age_col <- "age_default"
   }
   
-  taxa.start.col = min(match(taxa_all, colnames(pollen_ts)), na.rm=TRUE)
-
-  if (int > 0){
-    #   breaks = seq(0,2500,by=int)
-    breaks = seq(tmin,tmax,by=int)
-    # breaks[1] = min(pollen_ts$age_bacon)
+  ## Validate taxa columns
+  missing_taxa <- setdiff(taxa_all, colnames(pollen_ts))
+  if (length(missing_taxa) > 0) {
+    stop("These taxa are missing from pollen_ts: ",
+         paste(missing_taxa, collapse = ", "))
+  }
   
-    meta_pol  = pollen_ts[which((pollen_ts[, age_col] >= tmin) &
-                                (pollen_ts[, age_col] <= tmax)),1:(taxa.start.col-1)]
-    counts = pollen_ts[which((pollen_ts[, age_col] >= tmin) &
-                             (pollen_ts[, age_col] <= tmax)),taxa.start.col:ncol(pollen_ts)]
-    # meta_pol  = pollen_ts[which(pollen_ts[, age_col] <= tmax),1:(taxa.start.col-1)]
-    # counts = pollen_ts[which(pollen_ts[, age_col] <= tmax),taxa.start.col:ncol(pollen_ts)]
-    
-    meta_pol = data.frame(meta_pol, age=rep(NA, nrow(meta_pol)))
-    
-    counts_agg = matrix(NA, nrow=0, ncol=ncol(counts))
-    colnames(counts_agg) = colnames(counts)
-    
-    meta_agg = matrix(NA, nrow=0, ncol=6)
-    colnames(meta_agg) = colnames(meta_pol)[1:6]
-    
-    meta_all = matrix(NA, nrow=0, ncol=ncol(meta_pol))
-    colnames(meta_all) = colnames(meta_pol)
+  ## Explicit taxa columns (order preserved)
+  taxa_cols <- taxa_all
   
-    ids = unique(meta_pol$id)
-    ncores = length(ids)
-  
-    for (i in 1:ncores){
+  ## Time breaks
+  if (int > 0) {
+    
+    breaks <- seq(tmin, tmax, by = int)
+    
+    ## Rows within time window
+    ## Intrestingly, this will filter bacon draws outside of the time interval
+    rows_keep <- which(pollen_ts[[age_col]] >= tmin &
+                         pollen_ts[[age_col]] <= tmax)
+    
+    ## Split metadata vs counts
+    meta_pol <- pollen_ts[rows_keep,
+                          setdiff(colnames(pollen_ts), taxa_cols),
+                          drop = FALSE]
+    
+    counts <- pollen_ts[rows_keep,
+                        taxa_cols,
+                        drop = FALSE]
+    
+    ## Add aggregated age column
+    meta_pol <- data.frame(meta_pol, age = rep(NA, nrow(meta_pol)))
+    
+    ## Initialize outputs
+    counts_agg <- matrix(NA, nrow = 0, ncol = ncol(counts))
+    colnames(counts_agg) <- colnames(counts)
+    
+    meta_agg <- matrix(NA, nrow = 0, ncol = 6)
+    colnames(meta_agg) <- colnames(meta_pol)[1:6]
+    
+    meta_all <- matrix(NA, nrow = 0, ncol = ncol(meta_pol))
+    colnames(meta_all) <- colnames(meta_pol)
+    
+    ## Loop over cores
+    ids <- unique(meta_pol$id)
+    for (i in seq_along(ids)) {
       
+      # Print the core number (for progress/debugging)
       print(i)
       
-      #print(i)
-      core_rows = which(meta_pol$id == ids[i])
-      #     core_counts = counts[core_rows,]
-    
-      for (j in 1:(length(breaks)-1)){
-        
-        #print(j)
-        age = breaks[j] + int/2
+      # Identify all rows in meta_pol that belong to the current core
+      core_rows <- which(meta_pol$id == ids[i])
       
-        age_rows = core_rows[(meta_pol[core_rows, age_col] >= breaks[j]) & 
-                             (meta_pol[core_rows, age_col] < breaks[j+1])]
-      
-        if (length(age_rows)>1){
+      # Loop over each time interval defined by 'breaks'
+      for (j in 1:(length(breaks) - 1)) {
         
-          counts_agg = rbind(counts_agg, colSums(counts[age_rows, ]))
+        # Define the midpoint of the current interval for aggregated age
+        age <- breaks[j] + int / 2
         
-          meta_agg      = rbind(meta_agg, data.frame(meta_pol[age_rows[1],1:6], age=age/100, zero=FALSE))
-          
-          meta_all_row = data.frame(meta_pol[age_rows,])
-          meta_all_row$age = rep(age/100)
-          meta_all = rbind(meta_all, meta_all_row)
+        # Find rows within the current core that fall into this age interval
+        age_rows <- core_rows[
+          meta_pol[core_rows, age_col] >= breaks[j] &
+            meta_pol[core_rows, age_col] <  breaks[j + 1]
+        ]
         
-      } else if (length(age_rows) == 1){
-        
-          counts_agg = rbind(counts_agg, counts[age_rows, ])
-        
-          meta_agg      = rbind(meta_agg, data.frame(meta_pol[age_rows,1:6], age=rep(age/100), zero=FALSE))
-          # meta_agg$age[nrow(meta_agg)] = age/100
+        # Case 1: More than one sample in this interval
+        if (length(age_rows) > 1) {
           
-          meta_all_row = data.frame(meta_pol[age_rows,])
-          meta_all_row$age = rep(age/100)
-          meta_all = rbind(meta_all, meta_all_row)
+          # Aggregate counts across all samples in this interval (sum per taxon)
+          counts_agg <- rbind(counts_agg,
+                              colSums(counts[age_rows, , drop = FALSE]))
           
-      } else if (length(age_rows) == 0){
+          # Take the metadata from the first sample, add aggregated age & mark as non-zero
+          meta_agg <- rbind(meta_agg,
+                            data.frame(meta_pol[age_rows[1], 1:6],
+                                       age = age / 100, # puts interval in terms of centuries
+                                       zero = FALSE))
           
-          #FIX ME
-          counts_agg = rbind(counts_agg, rep(0,ncol(counts_agg)))
-        
-          meta_row = meta_pol[core_rows[1],1:6]
-          meta_agg      = rbind(meta_agg, data.frame(meta_row, age=age/100, zero=TRUE))
-          # meta_agg$age[nrow(meta_agg)] = age/100
+          # Store metadata for all individual samples in this interval with aggregated age
+          meta_all_row <- data.frame(meta_pol[age_rows, , drop = FALSE])
+          meta_all_row$age <- age / 100 # puts interval in terms of centuries
+          meta_all <- rbind(meta_all, meta_all_row)
           
-          meta_all_row = data.frame(meta_pol[core_rows[1],])
-          meta_all_row$age = NA
-          meta_all_row$age_bacon = NA
-          meta_all_row$age_default = NA
+          # Case 2: Exactly one sample in this interval
+        } else if (length(age_rows) == 1) {
           
-          meta_all = rbind(meta_all, meta_all_row)
-         
+          # Take the counts directly (no need to sum)
+          counts_agg <- rbind(counts_agg,
+                              counts[age_rows, , drop = FALSE])
+          
+          # Take the metadata, add aggregated age, mark as non-zero
+          meta_agg <- rbind(meta_agg,
+                            data.frame(meta_pol[age_rows, 1:6],
+                                       age = age / 100, # puts interval in terms of centuries
+                                       zero = FALSE))
+          
+          # Store metadata for this sample
+          meta_all_row <- data.frame(meta_pol[age_rows, , drop = FALSE])
+          meta_all_row$age <- age / 100 # puts interval in terms of centuries
+          meta_all <- rbind(meta_all, meta_all_row)
+          
+          # Case 3: No samples in this interval
+        } else {
+          
+          # Create a counts row of zeros (no data in this interval)
+          counts_agg <- rbind(counts_agg,
+                              rep(0, ncol(counts_agg)))
+          
+          # Take metadata from the first row of the core to keep core info
+          meta_row <- meta_pol[core_rows[1], 1:6]
+          
+          # Mark this interval as zero (no sample) in the aggregated metadata
+          meta_agg <- rbind(meta_agg,
+                            data.frame(meta_row,
+                                       age = age / 100, # puts interval in terms of centuries
+                                       zero = TRUE))
+          
+          # Store metadata for all samples in the core, but set ages to NA
+          meta_all_row <- data.frame(meta_pol[core_rows[1], , drop = FALSE])
+          meta_all_row$age <- NA
+          meta_all_row$age_bacon <- NA
+          meta_all_row$age_default <- NA
+          
+          meta_all <- rbind(meta_all, meta_all_row)
         }
-      
       }
     }
-  # } else if (int==0){
-  #   breaks = seq(tmin,tmax,by=int)
-  #   # breaks[1] = min(pollen_ts$age_bacon)
-  #   
-  #   meta_pol  = pollen_ts[which((pollen_ts[, age_col] >= tmin) &
-  #                                 (pollen_ts[, age_col] <= tmax)),1:(taxa.start.col-1)]
-  #   counts = pollen_ts[which((pollen_ts[, age_col] >= tmin) &
-  #                              (pollen_ts[, age_col] <= tmax)),taxa.start.col:ncol(pollen_ts)]
-  #   # meta_pol  = pollen_ts[which(pollen_ts[, age_col] <= tmax),1:(taxa.start.col-1)]
-  #   # counts = pollen_ts[which(pollen_ts[, age_col] <= tmax),taxa.start.col:ncol(pollen_ts)]
-  #   
-  #   meta_pol = data.frame(meta_pol, age=rep(NA, nrow(meta_pol)))
-  #   
-  #   counts_agg = matrix(NA, nrow=0, ncol=ncol(counts))
-  #   colnames(counts_agg) = colnames(counts)
-  #   
-  #   meta_agg = matrix(NA, nrow=0, ncol=6)
-  #   colnames(meta_agg) = colnames(meta_pol)[1:6]
-  #   
-  #   meta_all = matrix(NA, nrow=0, ncol=ncol(meta_pol))
-  #   colnames(meta_all) = colnames(meta_pol)
-  #   
-  #   ids = unique(meta_pol$id)
-  #   ncores = length(ids)
-  #   
-  #   for (i in 1:ncores){
-  #     
-  #     print(i)
-  #     
-  #     #print(i)
-  #     core_rows = which(meta_pol$id == ids[i])
-  #     #     core_counts = counts[core_rows,]
-  #     
-  #     for (j in 1:(length(breaks)-1)){
-  #       
-  #       #print(j)
-  #       age = breaks[j] + int/2
-  #       
-  #       age_rows = core_rows[(meta_pol[core_rows, age_col] >= breaks[j]) & 
-  #                              (meta_pol[core_rows, age_col] < breaks[j+1])]
-  #       
-  #       if (length(age_rows)>1){
-  #         
-  #         counts_agg = rbind(counts_agg, colSums(counts[age_rows, ]))
-  #         
-  #         meta_agg      = rbind(meta_agg, data.frame(meta_pol[age_rows[1],1:6], age=age/100, zero=FALSE))
-  #         
-  #         meta_all_row = data.frame(meta_pol[age_rows,])
-  #         meta_all_row$age = rep(age/100)
-  #         meta_all = rbind(meta_all, meta_all_row)
-  #         
-  #       } else if (length(age_rows) == 1){
-  #         
-  #         counts_agg = rbind(counts_agg, counts[age_rows, ])
-  #         
-  #         meta_agg      = rbind(meta_agg, data.frame(meta_pol[age_rows,1:6], age=rep(age/100), zero=FALSE))
-  #         # meta_agg$age[nrow(meta_agg)] = age/100
-  #         
-  #         meta_all_row = data.frame(meta_pol[age_rows,])
-  #         meta_all_row$age = rep(age/100)
-  #         meta_all = rbind(meta_all, meta_all_row)
-  #         
-  #       } else if (length(age_rows) == 0){
-  #         
-  #         #FIX ME
-  #         counts_agg = rbind(counts_agg, rep(0,ncol(counts_agg)))
-  #         
-  #         meta_row = meta_pol[core_rows[1],1:6]
-  #         meta_agg      = rbind(meta_agg, data.frame(meta_row, age=age/100, zero=TRUE))
-  #         # meta_agg$age[nrow(meta_agg)] = age/100
-  #         
-  #         meta_all_row = data.frame(meta_pol[core_rows[1],])
-  #         meta_all_row$age = NA
-  #         meta_all_row$age_bacon = NA
-  #         meta_all_row$age_default = NA
-  #         
-  #         meta_all = rbind(meta_all, meta_all_row)
-  #         
-  #       }
-  #       
-  #     }
-  #   }
-   }
-
-#   counts = counts_agg
-#   meta_pol = meta_agg
-  return(list(counts_agg, meta_agg, meta_all)) 
+  }
+  
+  return(list(counts_agg = counts_agg,
+              meta_agg   = meta_agg,
+              meta_all   = meta_all))
 }
+
 
 
 # build pollen counts
@@ -973,9 +938,8 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
   # Extract phi parameters from posterior (first K elements)
   phi    = post[which(par_names == 'phi')][1:K]
   
-  # ----------------------------
+
   # GAUSSIAN KERNEL
-  # ----------------------------
   if (kernel=='gaussian'){
     one_psi = run$one_psi  # Check if psi is shared across all taxa
     if (one_psi){
@@ -987,9 +951,7 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
       psi = post[which(par_names == 'psi')]
     }
     
-    # ----------------------------
-    # POWER-LAW KERNEL
-    # ----------------------------
+    # POWER-LAW KERNEL-
   } else if (kernel=='pl'){
     # Handle 'a' parameter (range)
     one_a = run$one_a
@@ -1012,16 +974,14 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
     }
   }
   
-  # ----------------------------
   # CASE 1: KW = TRUE → 3D weight array [K x N_cores x N]
-  # ----------------------------
   if (KW){
-    w = array(0, c(K, N_cores, N))  # initialize 3D array
+    w = array(0, c(K, N_cores, N))   # initialize 3D array
     for (k in 1:K){                  # loop over taxa
       print(paste0('k = ', k))
       for (i in 1:N_cores){          # loop over cores
         for (j in 1:N){              # loop over all locations
-          if (j != idx_cores[i]){   # optionally skip self-weight
+          if (j != idx_cores[i]){    # skip self-weight
             if (kernel == 'gaussian'){
               # Gaussian weight: exp(- (distance^2) / psi^2)
               w[k,i,j] = exp(-(d[i,j]*d[i,j])/(psi[k]*psi[k]))
@@ -1034,14 +994,12 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
       }
     }
     
-    # ----------------------------
-    # CASE 2: KW = FALSE → 2D weight array [N_cores x N]
-    # ----------------------------
+    # CASE 2: KW = FALSE → 2D weight array [N_cores x N] (what actually happens)
   } else {
-    w = array(0, c(N_cores, N))  # initialize 2D array
-    for (i in 1:N_cores){         # loop over cores
-      for (j in 1:N){             # loop over all locations
-        # if (j != idx_cores[i]){  # commented out self-weight skip
+    w = array(0, c(N_cores, N))   #  initialize 2D array
+    for (i in 1:N_cores){         #  loop over cores
+      for (j in 1:N){             #  loop over all locations
+        # if (j != idx_cores[i]){ #  commented out self-weight skip
         if (kernel == 'gaussian'){
           w[i,j] = exp(-(d[i,j]*d[i,j])/(psi*psi))  # Gaussian weight
         } else if (kernel == 'pl'){
@@ -1142,61 +1100,85 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
 # }
 
 
-# build the total potential neighborhood weighting
+# Function to calculate the total potential neighborhood weighting
+# Used to determine the normalization constant for the non-local contribution
 build_sumw_pot <- function(post, K, N_pot, d_pot, run){
   
-  d_pot = d_pot[!(d_pot[,1] < 1e-8), ]
+  # Remove rows where the distance is effectively zero (to avoid self-weight at the origin)
+  d_pot = d_pot[!(d_pot[,1] < 1e-8), ]  
   
-  KW = FALSE
-  kernel = run$kernel
-
-  par_names  = unlist(lapply(names(post), function(x) strsplit(x, "\\[")[[1]][1]))
+  # KW flag indicates whether we need a weight per taxa (TRUE → multiple weights)
+  KW = FALSE  
   
+  # Identify which kernel to use: "gaussian" or "pl" (power-law)
+  kernel = run$kernel  
+  
+  # Extract base parameter names from the posterior (strip indices like [1])
+  par_names  = unlist(lapply(names(post), function(x) strsplit(x, "\\[")[[1]][1]))  
+  
+  # Gaussian kernel
   if (kernel=='gaussian'){
-    one_psi = run$one_psi
+    one_psi = run$one_psi  # flag: is psi shared across all taxa?
+    
     if (one_psi){
-#       psi   = rep(mean(post[,1,which(par_names == 'psi')]), K)
+      # single psi value used for all taxa
       psi = post[which(par_names == 'psi')]
     } else {
+      # different psi per taxa → need KW = TRUE
       KW  = TRUE
       psi = post[which(par_names == 'psi')]
     }
     
     if (KW){
+      # Compute sum of weighted contributions for each taxa separately
       sum_w = rep(NA, K)
       for (k in 1:K)
-        sum_w[k] = sum(d_pot[,2] * exp(-d_pot[,1]^2/psi[k]^2))
+        # sum over all potential distances, weighted by number of points at that distance
+        sum_w[k] = sum(d_pot[,2] * exp(-d_pot[,1]^2 / psi[k]^2))
     } else {
-      sum_w = sum(d_pot[,2] * exp(-d_pot[,1]^2/psi^2))
+      # single psi for all taxa → sum once
+      sum_w = sum(d_pot[,2] * exp(-d_pot[,1]^2 / psi^2))
     }
     
+    # Power-law kernel
   } else if (kernel=='pl'){
-    one_a = run$one_a
-    one_b = run$one_b
+    one_a = run$one_a  # flag: is a (range) shared across taxa?
+    one_b = run$one_b  # flag: is b (shape) shared across taxa?
+    
+    # Handle 'a' parameter
     if (one_a){
-#       a = rep(mean(post[,1,which(par_names == 'a')]), K)
       a = post[which(par_names == 'a')]
     } else {
       KW = TRUE
       a = post[which(par_names == 'a')]
     }
+    
+    # Handle 'b' parameter
     if (one_b){
-#       b = rep(mean(post[,1,which(par_names == 'b')]), K)
       b = post[which(par_names == 'b')]
+      # If multiple 'a's, replicate 'b' to match K
       if (KW) b = rep(b, K)
     } else {
       KW = TRUE
       b  = post[which(par_names == 'b')]
     }
-
+    
     if (KW){
+      # compute sum of weighted contributions for each taxa separately
       sum_w = rep(NA, K)
       for (k in 1:K)
-        sum_w[k] = sum( d_pot[,2] * (b[k]-1) * (b[k]-2) / (2 * pi * a[k]  * a[k]) * (1 + d_pot[,1] / a[k])^(-b[k]) )
+        sum_w[k] = sum( d_pot[,2] * 
+                          (b[k]-1) * (b[k]-2) / (2 * pi * a[k]^2) * 
+                          (1 + d_pot[,1] / a[k])^(-b[k]) )
     } else {
-      sum_w = sum( d_pot[,2] * (b-1) * (b-2) / (2 * pi * a  * a) * (1 + d_pot[,1] / a)^(-b) )
+      # single a,b → sum once
+      sum_w = sum( d_pot[,2] * 
+                     (b-1) * (b-2) / (2 * pi * a^2) * 
+                     (1 + d_pot[,1] / a)^(-b) )
     }
   }
+  
+  # Return the normalization constant(s)
   return(sum_w)
 }
 

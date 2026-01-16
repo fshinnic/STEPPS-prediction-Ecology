@@ -391,6 +391,7 @@ c###############################################################################
 ## chunk 3: build distance matrices
 ##########################################################################################################################
 
+# matrix between all possible begetation squares
 d = rdist(centers_veg, centers_veg)
 diag(d) <- 0
 
@@ -416,6 +417,9 @@ KGAMMA = FALSE
 # FS -  to check that there is only one kernel object
 kernel <- sapply(runs, function(x) x$kernel)
 
+# phi = differential production
+# gamma = proportion of that cores pollen the given taxa producted in the grid cell
+# Log_a, mu_gamma, sigma_gamma,b, a, not
 cal_post      = rstan::extract(cal_fit, permuted=FALSE, inc_warmup=FALSE)
 col_names = colnames(cal_post[,1,])
 par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\[")[[1]][1]))
@@ -481,12 +485,12 @@ d_pot = t(rdist(matrix(c(0,0), ncol=2), as.matrix(coord_pot, ncol=2))/rescale)
 d_pot = unname(as.matrix(count(data.frame(d_pot))))
 
 N_pot     = nrow(d_pot)
-sum_w_pot = build_sumw_pot(cal_post, K, N_pot, d_pot, runs[[1]])
 
 #####################################################################################
 # recompute gamma; needed to account for change in resolution from base res
 #####################################################################################
 
+# FS - they made the resolution coarses, but d_hood doesn't exist
 w_coarse  = build_sumw_pot(cal_post, K, length(d_hood), cbind(t(d_hood), rep(1, length(d_hood))), run)
 gamma_new = recompute_gamma(w_coarse, sum_w_pot, gamma)
 
@@ -573,7 +577,8 @@ save(K, N, T, N_cores, N_knots, res,
      lag,
      #        P, N_p, sum_w_pot,
      meta_pol, meta_pol_all,
-     sum_w_pot, pollen_check,
+     sum_w_pot, 
+     #pollen_check, # FS - Doesn't exist still...
      knot_coords,
      centers_pls, centers_veg, centers_pol, taxa, ages, y_veg, N_pls,
      file=paste0(fname, '.rdata'))
@@ -603,7 +608,7 @@ if (dr==1){
   paths = list(path_grid   = path_grid, 
                path_pls    = path_pls, 
                path_pollen = path_pollen, 
-               path_ages  = path_ages, 
+              # path_ages  = path_ages,  # FS - Doesn't exist
                path_cal    = path_cal, 
                path_veg_data = path_veg_data, 
                path_veg_pars = path_veg_pars)

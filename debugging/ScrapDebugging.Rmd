@@ -1,0 +1,28 @@
+Scrap Debugging
+
+
+# Check what the "age_bacon" collumn is
+
+```{r}
+# uses pollen_ts3 from the pred_build_data.r file
+bacon_cols <- grep("^bacon_draw", names(pollen_ts3), value = TRUE)
+
+pollen_ts3$bacon_mean <- rowMeans(
+  pollen_ts3[, bacon_cols],
+  na.rm = TRUE
+)
+
+pollen_ts3$bacon_diff <- pollen_ts3$bacon_mean - pollen_ts3$age_bacon
+
+all.equal(
+  pollen_ts3$bacon_mean,
+  pollen_ts3$age_bacon,
+  tolerance = 1e-6
+)
+
+
+summary(pollen_ts3$bacon_diff)
+
+
+```
+
