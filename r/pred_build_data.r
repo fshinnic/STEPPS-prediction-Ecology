@@ -7,8 +7,10 @@ library(mvtnorm)
 #library(maptools)
 library(maps)
 library(plyr)
+library(sf)
 
-source('r/utils/pred_helper_funs.r')
+source(file.path(getwd(), "r/utils/pred_helper_funs.r"))
+load("~/Documents/STEPPS-prediction-Ecology/debugging/split_mi_2060.RData")
 
 ######################################################################################################################################
 # user defs
@@ -62,7 +64,7 @@ path_pls      = 'data/pls_umw_v0.6.csv'
 path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
 
 # Only non-varve lakes of interest
-#path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
+# path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
 
 if (bchron){
   path_age_samples    = 'data/bchron_ages'
@@ -321,7 +323,7 @@ plot(us.shp, add=T, lwd=2)
 # FS - Moved x and y columns to front so that they aren't lost in build_pollen_counts function
 pollen_ts3 <- pollen_ts3[, c("id", "x", "y", setdiff(colnames(pollen_ts3), c("id","x","y")))]
 
-# sum counts over int length intervals
+# sum counts over time interval length intervals
 pollen_agg = build_pollen_counts(tmin=tmin, tmax=tmax, int=int, pollen_ts=pollen_ts3, taxa_all, taxa_sub, age_model=age_model)
 #pollen_agg = build_pollen_counts_fast_core(tmin=tmin, tmax=tmax, int=int, pollen_ts=pollen_ts)
 
@@ -378,12 +380,12 @@ points(centers_pol$x*rescale, centers_pol$y*rescale, col='blue', pch=4, cex=1.4)
 plot(us.shp, add=TRUE)
 
 ## SAVE ENVIORNMENT THERE TO NOT RUN POLLEN AGG AGAIN ##
-save.image("my_environment.RData")
-load("my_environment.RData")
+# save.image("my_environment.RData")
+# load("my_environment.RData")
 
 # check domain splitting
-# FS - pollen chick doesn't exist
-idx_cores_all <- build_idx_cores(cbind(pollen_check$x, pollen_check$y), centers_veg, N_cores=nrow(pollen_check))
+# FS - pollen check doesn't exist
+# idx_cores_all <- build_idx_cores(cbind(pollen_check$x, pollen_check$y), centers_veg, N_cores=nrow(pollen_check))
 
 c##########################################################################################################################
 ## chunk 3: build distance matrices
@@ -406,12 +408,14 @@ N_knots = nrow(knot_coords)
 ##########################################################################################################################
 ## pull in calibration parameters
 ##########################################################################################################################
-# FS - START HERE 12/26/2025
 
 KW     = FALSE
 KGAMMA = FALSE
 
-kernel    = run$kernel
+# kernel    = run$kernel
+# FS -  to check that there is only one kernel object
+kernel <- sapply(runs, function(x) x$kernel)
+
 cal_post      = rstan::extract(cal_fit, permuted=FALSE, inc_warmup=FALSE)
 col_names = colnames(cal_post[,1,])
 par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\[")[[1]][1]))
@@ -425,7 +429,7 @@ if (draw) {
 
 phi = unname(cal_post[which(par_names == 'phi')][1:K])
 
-one_gamma = run$one_gamma
+one_gamma = sapply(runs, function(x) x$one_gamma) 
 
 if (one_gamma){
   gamma = unname(cal_post[which(par_names == 'gamma')])
@@ -435,14 +439,22 @@ if (one_gamma){
 }
 
 if (kernel=='pl'){
-  one_a = run$one_a
+  
+  # FS
+  # one_a = runs$one_a
+  one_a = sapply(runs, function(x) x$one_a) 
+  
   if (one_a){
     a = unname(cal_post[which(par_names == 'a')])
   } else {
     KW = TRUE
     a = unname(cal_post[which(par_names == 'a')][1:K])
   }
-  one_b = run$one_b
+  
+  # FS
+  # one_b = runs$one_b
+  one_b = sapply(runs, function(x) x$one_b) 
+  
   if (one_b){
     b = unname(cal_post[which(par_names == 'b')])
   } else {
@@ -451,7 +463,11 @@ if (kernel=='pl'){
   }
 }
 
-w <- build_weight_matrix(cal_post, d_pol, idx_cores, N, N_cores, run)
+# FS - START HERE 1/15/2025 - Check more what this function does
+
+# FS - changed since runs appears to have multiple layers
+# create the weighting matrix for pollen dispersion for each of the 12 taxa groups
+w <- build_weight_matrix(cal_post, d_pol, idx_cores, N, N_cores, runs[[1]])
 
 #####################################################################################
 # calculate potential d
@@ -465,7 +481,7 @@ d_pot = t(rdist(matrix(c(0,0), ncol=2), as.matrix(coord_pot, ncol=2))/rescale)
 d_pot = unname(as.matrix(count(data.frame(d_pot))))
 
 N_pot     = nrow(d_pot)
-sum_w_pot = build_sumw_pot(cal_post, K, N_pot, d_pot, run)
+sum_w_pot = build_sumw_pot(cal_post, K, N_pot, d_pot, runs[[1]])
 
 #####################################################################################
 # recompute gamma; needed to account for change in resolution from base res

@@ -936,7 +936,7 @@ build_pollen_counts_fast_core <- function(tmin, tmax, int, pollen_ts){
   return(list(counts_agg, meta_agg)) 
 }
 
-
+# FS - added comments
 # build idx_cores
 build_idx_cores <- function(centers_polU, centers_pls, N_cores){
 
@@ -950,38 +950,61 @@ build_idx_cores <- function(centers_polU, centers_pls, N_cores){
 return(idx_cores)
 }
 
-# build the weight matrix
+# FS - added comments
+# Function to build the weight matrix for spatial correlation
+# Inputs:
+#   post       - posterior samples from the model
+#   d          - distance matrix between cores and target points
+#   idx_cores  - indices of cores used in weighting
+#   N          - total number of locations
+#   N_cores    - number of cores
+#   run        - a list with kernel and parameter settings for the current run
 build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
   
+  # Extract the base names of the posterior parameters (remove indexing like "[1]")
   par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\[")[[1]][1]))
   
+  # KW flag: TRUE if we need a full K x N_cores x N weight array
   KW     = FALSE
+  
+  # Identify the kernel type for weighting ("gaussian" or "pl" = power-law)
   kernel = run$kernel
+  
+  # Extract phi parameters from posterior (first K elements)
   phi    = post[which(par_names == 'phi')][1:K]
   
+  # ----------------------------
+  # GAUSSIAN KERNEL
+  # ----------------------------
   if (kernel=='gaussian'){
-    one_psi = run$one_psi
+    one_psi = run$one_psi  # Check if psi is shared across all taxa
     if (one_psi){
-      #       psi   = rep(mean(post[,1,which(par_names == 'psi')]), K)
+      # Use single psi value (shared across K taxa)
       psi = post[which(par_names == 'psi')]
     } else {
+      # KW = TRUE means we will create a 3D weight matrix for multiple psi
       KW  = TRUE
       psi = post[which(par_names == 'psi')]
     }
+    
+    # ----------------------------
+    # POWER-LAW KERNEL
+    # ----------------------------
   } else if (kernel=='pl'){
+    # Handle 'a' parameter (range)
     one_a = run$one_a
     if (one_a){
-      #       a = rep(mean(post[,1,which(par_names == 'a')]), K)
-      a = post[which(par_names == 'a')]
+      a = post[which(par_names == 'a')]  # single a value for all taxa
     } else {
-      KW = TRUE
+      KW = TRUE  # different a per taxa → need 3D weight array
       a  = post[which(par_names == 'a')]
     }
     
+    # Handle 'b' parameter (shape)
     one_b = run$one_b
     if (one_b){
-      #       b = rep(mean(post[,1,which(par_names == 'b')]), K)
       b = post[which(par_names == 'b')]
+      # If we also need KW (multiple a's), replicate b to match K
       if (KW) b = rep(b, K)
     } else {
       KW = TRUE
@@ -989,51 +1012,50 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
     }
   }
   
+  # ----------------------------
+  # CASE 1: KW = TRUE → 3D weight array [K x N_cores x N]
+  # ----------------------------
   if (KW){
-    w = array(0, c(K, N_cores, N))
-    for (k in 1:K){
+    w = array(0, c(K, N_cores, N))  # initialize 3D array
+    for (k in 1:K){                  # loop over taxa
       print(paste0('k = ', k))
-      for (i in 1:N_cores){
-        for (j in 1:N){ 
-          if (j != idx_cores[i]){
+      for (i in 1:N_cores){          # loop over cores
+        for (j in 1:N){              # loop over all locations
+          if (j != idx_cores[i]){   # optionally skip self-weight
             if (kernel == 'gaussian'){
+              # Gaussian weight: exp(- (distance^2) / psi^2)
               w[k,i,j] = exp(-(d[i,j]*d[i,j])/(psi[k]*psi[k]))
             } else if (kernel == 'pl'){
+              # Power-law weight formula
               w[k,i,j] = (b[k]-1) * (b[k]-2) / (2 * pi * a[k]  * a[k]) * (1 + d[i,j] / a[k]) ^ (-b[k])
             }
           } 
         }
       }
     }
+    
+    # ----------------------------
+    # CASE 2: KW = FALSE → 2D weight array [N_cores x N]
+    # ----------------------------
   } else {
-    w = array(0, c(N_cores, N))
-      for (i in 1:N_cores){
-        for (j in 1:N){ 
-#           if (j != idx_cores[i]){
-            if (kernel == 'gaussian'){
-              w[i,j] = exp(-(d[i,j]*d[i,j])/(psi*psi))
-            } else if (kernel == 'pl'){
-              w[i,j] = (b-1) * (b-2) / (2 * pi * a  * a) * (1 + d[i,j] / a) ^ (-b)
-            }
-#           } 
+    w = array(0, c(N_cores, N))  # initialize 2D array
+    for (i in 1:N_cores){         # loop over cores
+      for (j in 1:N){             # loop over all locations
+        # if (j != idx_cores[i]){  # commented out self-weight skip
+        if (kernel == 'gaussian'){
+          w[i,j] = exp(-(d[i,j]*d[i,j])/(psi*psi))  # Gaussian weight
+        } else if (kernel == 'pl'){
+          w[i,j] = (b-1) * (b-2) / (2 * pi * a  * a) * (1 + d[i,j] / a) ^ (-b)  # Power-law
         }
+        # }  
+      }
     }
   }
   
-  
-  #   for (i in 1:N_cores){
-  #     for (j in 1:N){
-  #       print(paste0("i = ", i))
-  #       print(j)
-  #       if ( d[idx_cores[i],j] > 0 ) {
-  #         w[i,j] <- exp(-(d[idx_cores[i],j]/psi)^2)
-  #       } 
-  #     }
-  #   }
-  
-  
+  # Return the weight matrix
   return(w)
 }
+
 
 # 
 # # build the weight matrix
@@ -1845,24 +1867,48 @@ ess <- function(fit){
   return(ess)
 }
 
-pollen_to_albers <- function(pollen_ts){
-
-  centers_pol = data.frame(x=pollen_ts$long, y=pollen_ts$lat)
-
-  coordinates(centers_pol) <- ~ x + y
-  proj4string(centers_pol) <- CRS('+proj=longlat +ellps=WGS84')
-
-  centers_polA <- spTransform(centers_pol, CRS('+init=epsg:3175'))
-  centers_polA <- as.matrix(data.frame(centers_polA))/1000000
-
-  pollen_ts$long = centers_polA[,'x']
-  pollen_ts$lat = centers_polA[,'y']
- 
-  colnames(pollen_ts)[grep("lat", colnames(pollen_ts))] = 'y'
-  colnames(pollen_ts)[grep("long", colnames(pollen_ts))] = 'x'
+# Edited 1/15/2026 by FS
+# function to convert the latitude and longitude of the lake site location into
+# albers coordinates that match the STEPPS model
+pollen_to_albers <- function(pollen_ts) {
+  library(sp)
   
+  # Remove rows with missing latitude or longitude
+  pollen_ts <- pollen_ts[!is.na(pollen_ts$lat) & !is.na(pollen_ts$long), ]
+  
+  # Stop if no valid coordinates remain after filtering
+  if (nrow(pollen_ts) == 0)
+    stop("No valid coordinates to transform.")
+  
+  # Create a data frame of lake-site coordinates
+  # These represent the geographic (WGS84) locations of pollen sites
+  centers_pol <- data.frame(
+    x = pollen_ts$long,
+    y = pollen_ts$lat)
+  
+  # Convert coordinate columns into a SpatialPoints object
+  coordinates(centers_pol) <- ~ x + y
+  
+  # Assign WGS84 geographic coordinate reference system
+  proj4string(centers_pol) <- CRS("+proj=longlat +datum=WGS84 +no_defs")
+  
+  # Transform coordinates to Albers Equal Area projection
+  # EPSG:3175 = NAD83 / Conus Albers
+  centers_polA <- spTransform(centers_pol, CRS(SRS_string = "EPSG:3175")
+  )
+  
+  # Convert projected SpatialPoints back to a data frame
+  centers_polA_df <- as.data.frame(centers_polA)
+  colnames(centers_polA_df) <- c("x", "y")
+  
+  # Append projected coordinates to the original pollen time series
+  pollen_ts$x <- centers_polA_df$x
+  pollen_ts$y <- centers_polA_df$y
+  
+  # Return pollen data with added Albers-projected coordinates
   return(pollen_ts)
 }
+
 
 
 other_build <- function(y, counts, other.idx){
@@ -2032,7 +2078,6 @@ convert_counts <- function(counts, tree_type, taxa_sub){
   
   return(y_veg)
 }
-
 
 #HO - I believe this functions splits the Michigan upper peninsula from the lower 
 #peninsula because only the UP is in the domain. 
