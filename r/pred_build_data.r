@@ -9,8 +9,10 @@ library(maps)
 library(plyr)
 library(sf)
 
+
 source(file.path(getwd(), "r/utils/pred_helper_funs.r"))
-load("~/Documents/STEPPS-prediction-Ecology/debugging/split_mi_2060.RData")
+
+getwd()
 
 ######################################################################################################################################
 # user defs
@@ -176,7 +178,7 @@ meta   = pls.raw[,1:(taxa.start.col-1)]
 # pls$X = pls$X/1000
 # pls$Y = pls$Y/1000
 
-# FS - use the new function
+# FS - use the new function (inputed to pred_hilders_funs.r)
 # create collumns state (minnesota, south dakatoa, north dakota, iowa, na, wiconsin, michigan:north, illinois, michigan:south, indiana, ohio)
 # and state2 (minnesota, wisconsin, michigan:north, and michigan:south) the corrected map look up
 meta        = split_mi(meta)
@@ -339,7 +341,10 @@ meta_pol_all$stat_id = pol_ids$stat_id[match(meta_pol_all$id, pol_ids$id)]
 pollen_ts$stat_id = pol_ids$stat[match(pollen_ts$id, pol_ids$id)]
 
 ages    = unique(sort(meta_pol$age)) # FS - only 21, each = 100 years
+
+# number of time slaces (20 of 100 years = 2000 years)
 T       = length(ages) 
+
 if (one_time) {
   lag = 0
 } else {
@@ -377,7 +382,7 @@ idx_cores <- build_idx_cores(centers_pol, centers_veg, N_cores)
 plot(centers_veg$x*rescale, centers_veg$y*rescale, col='lightgrey')
 points(centers_veg[idx_cores,'x']*rescale, centers_veg[idx_cores,'y']*rescale, col='red', pch=19)
 points(centers_pol$x*rescale, centers_pol$y*rescale, col='blue', pch=4, cex=1.4)
-plot(us.shp, add=TRUE)
+#plot(us.shp, add=TRUE)
 
 ## SAVE ENVIORNMENT THERE TO NOT RUN POLLEN AGG AGAIN ##
 # save.image("my_environment.RData")
@@ -491,8 +496,8 @@ N_pot     = nrow(d_pot)
 #####################################################################################
 
 # FS - they made the resolution coarses, but d_hood doesn't exist
-w_coarse  = build_sumw_pot(cal_post, K, length(d_hood), cbind(t(d_hood), rep(1, length(d_hood))), run)
-gamma_new = recompute_gamma(w_coarse, sum_w_pot, gamma)
+# w_coarse  = build_sumw_pot(cal_post, K, length(d_hood), cbind(t(d_hood), rep(1, length(d_hood))), run)
+# gamma_new = recompute_gamma(w_coarse, sum_w_pot, gamma)
 
 #####################################################################################
 # veg run pars
@@ -543,6 +548,7 @@ if (kernel == 'gaussian'){ suff = paste0('G_', suff) } else if (kernel == 'pl'){
 if (!draw) suff = paste0(suff, '_mean')
 
 dirName = paste0('runs/', N_knots, 'knots_', tmin, 'to', tmax, 'ybp_', suff)
+
 if (one_time){
   dirName = paste0('runs/space_slices_', suff)
 }
@@ -583,7 +589,7 @@ save(K, N, T, N_cores, N_knots, res,
      centers_pls, centers_veg, centers_pol, taxa, ages, y_veg, N_pls,
      file=paste0(fname, '.rdata'))
 
-# convert to row-major
+# convert to row-major # FS - DOESN"T EXIST
 if (KW){
   w_new = vector(length=0)
   for (k in 1:K)

@@ -706,7 +706,7 @@ build_pollen_counts <- function(tmin, tmax, int,
   }
   
   ## Explicit taxa columns (order preserved)
-  taxa_cols <- taxa_all
+  taxa_cols <- c(taxa_all, "OTHER.CONIFER", "OTHER.HARDWOOD")
   
   ## Time breaks
   if (int > 0) {
@@ -2063,59 +2063,39 @@ convert_counts <- function(counts, tree_type, taxa_sub){
 
 #HO - I believe this functions splits the Michigan upper peninsula from the lower 
 #peninsula because only the UP is in the domain. 
-split_mi <- function(meta){
-  #Get the center points of each grid cell and make sure they are in the correct projection. 
+function(meta){
+  
   centers = data.frame(x=meta$x, y=meta$y)
   
-  sp::coordinates(centers) <- ~ x + y
-  sp::proj4string(centers) <- sp::CRS('+init=epsg:3175')
+  coordinates(centers) <- ~ x + y
+  proj4string(centers) <- CRS('+init=epsg:3175')
   
-  centers_ll <- sp::spTransform(centers, sp::CRS('+proj=longlat +ellps=WGS84'))
+  centers_ll <- spTransform(centers, CRS('+proj=longlat +ellps=WGS84'))
   centers_ll <- as.matrix(data.frame(centers_ll))
-  #Check that the data actually has state names. 
+  
   if (!any(colnames(meta) == 'state')) {
-    meta$state = maps::map.where(database='state', centers_ll[,1], centers_ll[,2])
+    meta$state = map.where(database='state', centers_ll[,1], centers_ll[,2])
   }
-
-  #Find which points are definitely in the UP vs. the LP. 
+  
   idx.mi = which(meta$state=='michigan_north')
   meta$state2 = as.vector(meta$state)
-  meta$state2[idx.mi] = maps::map.where(database="state", centers_ll[idx.mi,1], centers_ll[idx.mi,2])
+  meta$state2[idx.mi] = map.where(database="state", centers_ll[idx.mi,1], centers_ll[idx.mi,2])
   idx.na = which(is.na(meta$state2))
   idx.not.na = which(!is.na(meta$state2))
   
   idx.mi.s = which(meta$state=='michigan_south')
   meta$state2[idx.mi.s] = 'michigan:south'#map.where(database="state", centersLL[idx.mi.s,1], centersLL[idx.mi.s,2])
   
-  #For all of the grid cells whose state is unknown, check if it is in the UP. 
-  for (i in 1:45){
-    idx = idx.na[i]#Get a grid cell in an unknown state. 
-    print(paste("idx = ", idx))
-    centers = centers_ll[idx.not.na,]#Get the grid cells that aren't in unknown states. 
-    print("Centers worked")
-    dmat = fields::fields.rdist.near(matrix(centers_ll[idx,], nrow=1) , matrix(centers, ncol=2), delta = 15, max.points = 10000)#Distances between our grid cell and all the other non-na cells. 
-    print("dmat worked")
-    dmat = data.frame(t(dmat$ra))
-    print(paste("number of nas = ", sum(is.na(dmat))))
-    min.val = dmat[1,which.min(dmat[which(dmat>1e-10)])]#Find which grid cell is closest. 
-    print(paste("Closest cell is a distance of: ", min.val))
-    idx_close = which(dmat == min.val)
-    print(paste("id of closest cell is", idx_close))
-    state  = maps::map.where(database="state", centers[idx_close,1], centers[idx_close,2])#What state is that closest cell in?
-    print("state worked")
-    meta$state2[idx] = state
-    print(i)
-  }
-  
   for (i in 1:length(idx.na)){
     idx = idx.na[i]
     centers = centers_ll[idx.not.na,]
-    dmat = fields::rdist(matrix(centers_ll[idx,], nrow=1) , matrix(centers, ncol=2))
+    dmat = rdist(matrix(centers_ll[idx,], nrow=1) , matrix(centers, ncol=2))
     min.val = dmat[1,which.min(dmat[which(dmat>1e-10)])]
-    idx_close = which(dmat == min.val)
-    state  = maps::map.where(database="state", centers[idx_close,1], centers[idx_close,2])
+    dvec = as.numeric(dmat)
+    if (length(dvec) == 0 || all(is.na(dvec))) next
+    idx_close = which.min(dvec)
+    state  = map.where(database="state", centers[idx_close,1], centers[idx_close,2])
     meta$state2[idx] = state
-    print(i)
   }
   
   meta$state2[which(meta$state2[idx.mi]=='minnesota')] = 'michigan:north'
@@ -2131,6 +2111,7 @@ split_mi <- function(meta){
   return(meta)
   
 }
+
 get_quants <- function(post, npars){
   
 #   quants <- colMeans(post[,1,1:npars])

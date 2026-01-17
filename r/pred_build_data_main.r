@@ -50,6 +50,7 @@ runs = list(run_pl_Ka_Kgamma)
   # }
 # }
 
+# execute all code in the pred_build_main
 if (draw){
   for (dr in 1:ndraws){
     source('r/pred_build_data.r')
