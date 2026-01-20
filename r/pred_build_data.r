@@ -63,10 +63,11 @@ path_grid = 'data/grid/umw_3by_v2.rdata'
 
 path_pls      = 'data/pls_umw_v0.6.csv'
 
-path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
+# All pollen data sets
+# path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
 
 # Only non-varve lakes of interest
-# path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
+path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
 
 if (bchron){
   path_age_samples    = 'data/bchron_ages'
@@ -139,7 +140,6 @@ if (constrain){
   }
   pollen_ts = pollen_ts[!drop_samples,]
 }
-
 
 cal_fit = rstan::read_stan_csv(path_cal)
 
@@ -289,7 +289,7 @@ saveRDS(pollen_ts, file='data/pollen_ts.RDS')
 
 # FS - only keep sites in "minnesota"      "wisconsin"      "michigan:north"
 pollen_ts1 = pollen_ts[which(pollen_ts$state %in% states_pol),]
-colnames(pollen_ts1)
+# colnames(pollen_ts1)
 
 # FS - had to edit this function to use sf instead (rerun pollen_to_albers.r file)
 # reproject pollen coords from lat long to Albers
@@ -326,7 +326,7 @@ plot(us.shp, add=T, lwd=2)
 pollen_ts3 <- pollen_ts3[, c("id", "x", "y", setdiff(colnames(pollen_ts3), c("id","x","y")))]
 
 # sum counts over time interval length intervals
-pollen_agg = build_pollen_counts(tmin=tmin, tmax=tmax, int=int, pollen_ts=pollen_ts3, taxa_all, taxa_sub, age_model=age_model)
+pollen_agg = build_pollen_counts(tmin=tmin, tmax=tmax, int=int, pollen_ts=(pollen_ts3), taxa_all, taxa_sub, age_model=age_model)
 #pollen_agg = build_pollen_counts_fast_core(tmin=tmin, tmax=tmax, int=int, pollen_ts=pollen_ts)
 
 # saveRDS(pollen_ts3, file=paste0(subDir, '/pollen_meta.RDS'))

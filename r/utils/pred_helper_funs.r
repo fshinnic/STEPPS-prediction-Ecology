@@ -681,13 +681,14 @@ get_mu <- function(post, W){
   return(mu)
 }
 
+# FS - Edited 1/20/2025
 build_pollen_counts <- function(tmin, tmax, int,
-                                pollen_ts,
-                                taxa_all,
-                                taxa_sub,
-                                age_model){
+                                 pollen_ts,
+                                 taxa_all,
+                                 taxa_sub,
+                                 age_model){
   
-  ## Choose age model column 
+  ## Choose age model column
   ## Currently, it appears as though the age_bacon is within 0.003452127 of the mean draws
   ## COULD BE IMPROVED TO ADD TIME DATING
   if (age_model == "bacon") {
@@ -706,7 +707,11 @@ build_pollen_counts <- function(tmin, tmax, int,
   }
   
   ## Explicit taxa columns (order preserved)
-  taxa_cols <- c(taxa_all, "OTHER.CONIFER", "OTHER.HARDWOOD")
+  # also provides safeguard incase the taxa included change
+  taxa_cols <- intersect(
+    unique(c(taxa_all, "OTHER.CONIFER", "OTHER.HARDWOOD")),
+    colnames(pollen_ts)
+  )
   
   ## Time breaks
   if (int > 0) {
@@ -714,7 +719,7 @@ build_pollen_counts <- function(tmin, tmax, int,
     breaks <- seq(tmin, tmax, by = int)
     
     ## Rows within time window
-    ## Intrestingly, this will filter bacon draws outside of the time interval
+    ## Interestingly, this will filter bacon draws outside of the time interval
     rows_keep <- which(pollen_ts[[age_col]] >= tmin &
                          pollen_ts[[age_col]] <= tmax)
     
@@ -728,17 +733,16 @@ build_pollen_counts <- function(tmin, tmax, int,
                         drop = FALSE]
     
     ## Add aggregated age column
-    meta_pol <- data.frame(meta_pol, age = rep(NA, nrow(meta_pol)))
+    meta_pol$age <- NA
     
-    ## Initialize outputs
+    ## Initialize outputs dynamically
     counts_agg <- matrix(NA, nrow = 0, ncol = ncol(counts))
     colnames(counts_agg) <- colnames(counts)
     
-    meta_agg <- matrix(NA, nrow = 0, ncol = 6)
-    colnames(meta_agg) <- colnames(meta_pol)[1:6]
+    meta_agg <- meta_pol[0, c("id","x", "y","sitename","lat","long","state","altitude","age")]
+    meta_agg$zero <- logical(0)
     
-    meta_all <- matrix(NA, nrow = 0, ncol = ncol(meta_pol))
-    colnames(meta_all) <- colnames(meta_pol)
+    meta_all <- meta_pol[0, , drop = FALSE]  # all metadata columns + age
     
     ## Loop over cores
     ids <- unique(meta_pol$id)
@@ -771,13 +775,13 @@ build_pollen_counts <- function(tmin, tmax, int,
           
           # Take the metadata from the first sample, add aggregated age & mark as non-zero
           meta_agg <- rbind(meta_agg,
-                            data.frame(meta_pol[age_rows[1], 1:6],
-                                       age = age / 100, # puts interval in terms of centuries
+                            data.frame(meta_pol[age_rows[1], c("id","x", "y","sitename","lat","long","state","altitude")],
+                                       age  = age / 100,  # interval in centuries
                                        zero = FALSE))
           
           # Store metadata for all individual samples in this interval with aggregated age
-          meta_all_row <- data.frame(meta_pol[age_rows, , drop = FALSE])
-          meta_all_row$age <- age / 100 # puts interval in terms of centuries
+          meta_all_row <- meta_pol[age_rows, , drop = FALSE]
+          meta_all_row$age <- age / 100
           meta_all <- rbind(meta_all, meta_all_row)
           
           # Case 2: Exactly one sample in this interval
@@ -789,13 +793,13 @@ build_pollen_counts <- function(tmin, tmax, int,
           
           # Take the metadata, add aggregated age, mark as non-zero
           meta_agg <- rbind(meta_agg,
-                            data.frame(meta_pol[age_rows, 1:6],
-                                       age = age / 100, # puts interval in terms of centuries
+                            data.frame(meta_pol[age_rows[1], c("id","x", "y","sitename","lat","long","state","altitude")],
+                                       age  = age / 100,
                                        zero = FALSE))
           
           # Store metadata for this sample
-          meta_all_row <- data.frame(meta_pol[age_rows, , drop = FALSE])
-          meta_all_row$age <- age / 100 # puts interval in terms of centuries
+          meta_all_row <- meta_pol[age_rows, , drop = FALSE]
+          meta_all_row$age <- age / 100
           meta_all <- rbind(meta_all, meta_all_row)
           
           # Case 3: No samples in this interval
@@ -806,19 +810,20 @@ build_pollen_counts <- function(tmin, tmax, int,
                               rep(0, ncol(counts_agg)))
           
           # Take metadata from the first row of the core to keep core info
-          meta_row <- meta_pol[core_rows[1], 1:6]
+          meta_row <- meta_pol[core_rows[1], c("id","x", "y", "sitename","lat","long","state","altitude")]
           
           # Mark this interval as zero (no sample) in the aggregated metadata
           meta_agg <- rbind(meta_agg,
                             data.frame(meta_row,
-                                       age = age / 100, # puts interval in terms of centuries
+                                       age  = age / 100,
                                        zero = TRUE))
           
           # Store metadata for all samples in the core, but set ages to NA
-          meta_all_row <- data.frame(meta_pol[core_rows[1], , drop = FALSE])
+          meta_all_row <- meta_pol[core_rows[1], , drop = FALSE]
           meta_all_row$age <- NA
-          meta_all_row$age_bacon <- NA
-          meta_all_row$age_default <- NA
+          if("age_bacon" %in% colnames(meta_all_row)) meta_all_row$age_bacon <- NA
+          if("age_bchron" %in% colnames(meta_all_row)) meta_all_row$age_bchron <- NA
+          if("age_default" %in% colnames(meta_all_row)) meta_all_row$age_default <- NA
           
           meta_all <- rbind(meta_all, meta_all_row)
         }
@@ -830,8 +835,6 @@ build_pollen_counts <- function(tmin, tmax, int,
               meta_agg   = meta_agg,
               meta_all   = meta_all))
 }
-
-
 
 # build pollen counts
 build_pollen_counts_fast_core <- function(tmin, tmax, int, pollen_ts){
@@ -1848,6 +1851,133 @@ ess <- function(fit){
   ess = summary(fit)$summary[,"n_eff"]
   return(ess)
 }
+
+# Imported by FS (1/20/2025)
+split_mi <- function(meta){
+  
+  # Get the center points of each grid cell and make sure they are in the correct projection.
+  centers = data.frame(x = meta$x, y = meta$y)
+  
+  sp::coordinates(centers) <- ~ x + y
+  sp::proj4string(centers) <- sp::CRS('+init=epsg:3175')
+  
+  centers_ll <- sp::spTransform(centers, sp::CRS('+proj=longlat +ellps=WGS84'))
+  centers_ll <- as.matrix(data.frame(centers_ll))
+  
+  # Check that the data actually has state names.
+  if (!any(colnames(meta) == 'state')) {
+    meta$state = maps::map.where(database = 'state',
+                                 centers_ll[,1],
+                                 centers_ll[,2])
+  }
+  
+  # Find which points are definitely in the UP vs. the LP.
+  idx.mi = which(meta$state == 'michigan_north')
+  meta$state2 = as.vector(meta$state)
+  
+  meta$state2[idx.mi] =
+    maps::map.where(database = "state",
+                    centers_ll[idx.mi,1],
+                    centers_ll[idx.mi,2])
+  
+  idx.na     = which(is.na(meta$state2))
+  idx.not.na = which(!is.na(meta$state2))
+  
+  idx.mi.s = which(meta$state == 'michigan_south')
+  meta$state2[idx.mi.s] = 'michigan:south'
+  
+  # For all of the grid cells whose state is unknown, check if it is in the UP.
+  for (i in 1:45){
+    
+    idx = idx.na[i]  # Get a grid cell in an unknown state.
+    print(paste("idx = ", idx))
+    
+    centers = centers_ll[idx.not.na,]  # Get the grid cells that aren't in unknown states.
+    print("Centers worked")
+    
+    # Distances between our grid cell and all the other non-na cells.
+    dmat = fields::fields.rdist.near(
+      matrix(centers_ll[idx,], nrow = 1),
+      matrix(centers, ncol = 2),
+      delta = 15,
+      max.points = 10000
+    )
+    print("dmat worked")
+    
+    dmat = data.frame(t(dmat$ra))
+    print(paste("number of nas = ", sum(is.na(dmat))))
+    
+    # ---- SAFETY CHECK: ensure a valid nearest neighbor exists ----
+    valid = which(dmat > 1e-10 & !is.na(dmat))
+    
+    if (length(valid) == 0) {
+      cat("No valid neighbors found for idx", idx, "\n")
+      next
+    }
+    
+    min.val = dmat[1, valid[which.min(dmat[1, valid])]]
+    print(paste("Closest cell is a distance of: ", min.val))
+    
+    idx_close = valid[which.min(dmat[1, valid])]
+    print(paste("id of closest cell is", idx_close))
+    
+    # What state is that closest cell in?
+    state = maps::map.where(database = "state",
+                            centers[idx_close,1],
+                            centers[idx_close,2])
+    print("state worked")
+    
+    # ---- SAFETY CHECK: state lookup succeeded ----
+    if (length(state) == 0 || is.na(state)) {
+      cat("State lookup failed for idx", idx, "\n")
+      next
+    }
+    
+    meta$state2[idx] = state
+    print(i)
+  }
+  
+  # Fallback: brute-force distance for any remaining NA grid cells 
+  # deals with the flating gird cells
+  for (i in 1:length(idx.na)){
+    
+    idx = idx.na[i]
+    centers = centers_ll[idx.not.na,]
+    
+    dmat = fields::rdist(
+      matrix(centers_ll[idx,], nrow = 1),
+      matrix(centers, ncol = 2)
+    )
+    
+    valid = which(dmat > 1e-10 & !is.na(dmat))
+    if (length(valid) == 0) next
+    
+    idx_close = valid[which.min(dmat[1, valid])]
+    state = maps::map.where(database = "state",
+                            centers[idx_close,1],
+                            centers[idx_close,2])
+    
+    if (length(state) == 0 || is.na(state)) next
+    
+    meta$state2[idx] = state
+    print(i)
+  }
+  
+  meta$state2[which(meta$state2[idx.mi] == 'minnesota')] = 'michigan:north'
+  
+  if (any(meta$state2 %in% c('illinois', 'indiana', 'ohio',
+                             'iowa', 'north dakota', 'south dakota'))) {
+    
+    meta$state2[which(meta$state2 == 'illinois')] = 'wisconsin'
+    meta$state2[which(meta$state2 %in% c('indiana', 'ohio'))] = 'michigan:south'
+    meta$state2[which((meta$state2 == 'iowa') & (meta$x > 370000))] = 'wisconsin'
+    meta$state2[which((meta$state2 == 'iowa') & (meta$x < 370000))] = 'minnesota'
+    meta$state2[which(meta$state2 %in% c('north dakota', 'south dakota'))] = 'minnesota'
+  }
+  
+  return(meta)
+}
+
 
 # Edited 1/15/2026 by FS
 # function to convert the latitude and longitude of the lake site location into
