@@ -64,10 +64,10 @@ path_grid = 'data/grid/umw_3by_v2.rdata'
 path_pls      = 'data/pls_umw_v0.6.csv'
 
 # All pollen data sets
-# path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
+path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
 
 # Only non-varve lakes of interest
-path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
+# path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
 
 if (bchron){
   path_age_samples    = 'data/bchron_ages'
@@ -270,7 +270,7 @@ plot(st_geometry(us.shp), add = TRUE, border = "black")
 
 # assign grid to centers_veg
 centers_veg = coarse_centers
-N = nrow(centers_veg)
+N = nrow(centers_veg) 
 
 # subdomain boundaries
 xlo = min(centers_veg$x)
@@ -415,31 +415,37 @@ N_knots = nrow(knot_coords)
 ## pull in calibration parameters
 ##########################################################################################################################
 
+# Weight taxa dispersion differentially
 KW     = FALSE
 KGAMMA = FALSE
 
-# kernel    = run$kernel
+# kernel    = runs$kernel # doesn't work for the structure of runs
 # FS -  to check that there is only one kernel object
 kernel <- sapply(runs, function(x) x$kernel)
 
 # phi = differential production
 # gamma = proportion of that cores pollen the given taxa producted in the grid cell
-# Log_a, mu_gamma, sigma_gamma,b, a, not
+# outputs iterations × chains × parameters
 cal_post      = rstan::extract(cal_fit, permuted=FALSE, inc_warmup=FALSE)
 col_names = colnames(cal_post[,1,])
+
+# format parameters correctly
 par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\[")[[1]][1]))
 
-if (draw) {
+if (draw) { # draw = FALSE
   draw_cal = sample(seq(1, dim(cal_post)[1]), 1)
   cal_post     = cal_post[draw_cal,1,]
 } else {
-  cal_post = colMeans(cal_post[,1,])
+  cal_post = colMeans(cal_post[,1,]) # average all parameters (phi, gamma, log_a, mu_a, b, sigma_a, a, ect.)
 }
 
+# extract phi values from calibration posterior
 phi = unname(cal_post[which(par_names == 'phi')][1:K])
 
+# extract one_gama values from callibration outputs
 one_gamma = sapply(runs, function(x) x$one_gamma) 
 
+# again, extract one_gamma values
 if (one_gamma){
   gamma = unname(cal_post[which(par_names == 'gamma')])
 } else {
@@ -447,12 +453,13 @@ if (one_gamma){
   gamma  = unname(cal_post[which(par_names == 'gamma')][1:K])
 }
 
-if (kernel=='pl'){
+if (kernel=='pl'){ # Power Law is true
   
   # FS
-  # one_a = runs$one_a
+  # one_a = runs$one_a # doesn't work, use below method
   one_a = sapply(runs, function(x) x$one_a) 
   
+  # Weird - one_a is false, so it sets KW to True, but later KW is set to false
   if (one_a){
     a = unname(cal_post[which(par_names == 'a')])
   } else {
@@ -461,9 +468,10 @@ if (kernel=='pl'){
   }
   
   # FS
-  # one_b = runs$one_b
-  one_b = sapply(runs, function(x) x$one_b) 
+  # one_b = runs$one_b 
+  one_b = sapply(runs, function(x) x$one_b)  # is TRUE
   
+  # one_b is true, so KW not reset to TRUE. 
   if (one_b){
     b = unname(cal_post[which(par_names == 'b')])
   } else {
@@ -472,7 +480,7 @@ if (kernel=='pl'){
   }
 }
 
-# FS - START HERE 1/15/2025 - Check more what this function does
+# FS - START HERE 1/22/2026 - Check more what this function does
 
 # FS - changed since runs appears to have multiple layers
 # create the weighting matrix for pollen dispersion for each of the 12 taxa groups
@@ -495,9 +503,12 @@ N_pot     = nrow(d_pot)
 # recompute gamma; needed to account for change in resolution from base res
 #####################################################################################
 
+# FS - START here
 # FS - they made the resolution coarses, but d_hood doesn't exist
 # w_coarse  = build_sumw_pot(cal_post, K, length(d_hood), cbind(t(d_hood), rep(1, length(d_hood))), run)
-# gamma_new = recompute_gamma(w_coarse, sum_w_pot, gamma)
+w_coarse  = build_sumw_pot(cal_post, K, N_pot, d_pot, runs) # this seems to work...
+
+gamma_new = recompute_gamma(w_coarse, sum_w_pot, gamma)
 
 #####################################################################################
 # veg run pars
@@ -614,7 +625,7 @@ if (dr==1){
   paths = list(path_grid   = path_grid, 
                path_pls    = path_pls, 
                path_pollen = path_pollen, 
-              # path_ages  = path_ages,  # FS - Doesn't exist
+              #path_ages  = path_ages,  # FS - Doesn't exist
                path_cal    = path_cal, 
                path_veg_data = path_veg_data, 
                path_veg_pars = path_veg_pars)

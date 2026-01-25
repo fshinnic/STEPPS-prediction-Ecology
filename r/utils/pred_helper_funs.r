@@ -924,8 +924,8 @@ return(idx_cores)
 #   post       - posterior samples from the model
 #   d          - distance matrix between cores and target points
 #   idx_cores  - indices of cores used in weighting
-#   N          - total number of locations
-#   N_cores    - number of cores
+#   N          - total number of grid cells (identified by centers) (6379)
+#   N_cores    - number of cores of pollen (199)
 #   run        - a list with kernel and parameter settings for the current run
 build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
   
@@ -936,7 +936,8 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
   KW     = FALSE
   
   # Identify the kernel type for weighting ("gaussian" or "pl" = power-law)
-  kernel = run$kernel
+  # kernel = run$kernel # FS doesn't think this works
+  kernel = sapply(runs, function(x) x$kernel) 
   
   # Extract phi parameters from posterior (first K elements)
   phi    = post[which(par_names == 'phi')][1:K]
@@ -944,7 +945,8 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
 
   # GAUSSIAN KERNEL
   if (kernel=='gaussian'){
-    one_psi = run$one_psi  # Check if psi is shared across all taxa
+    # one_psi = run$one_psi  # Check if psi is shared across all taxa
+    one_psi = sapply(runs, function(x) x$one_psi) 
     if (one_psi){
       # Use single psi value (shared across K taxa)
       psi = post[which(par_names == 'psi')]
@@ -955,9 +957,11 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
     }
     
     # POWER-LAW KERNEL-
+    # Shape parameters for power law
   } else if (kernel=='pl'){
     # Handle 'a' parameter (range)
-    one_a = run$one_a
+    # one_a = run$one_a # FS doesn't think this works
+    one_a = sapply(runs, function(x) x$one_a) 
     if (one_a){
       a = post[which(par_names == 'a')]  # single a value for all taxa
     } else {
@@ -966,7 +970,9 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
     }
     
     # Handle 'b' parameter (shape)
-    one_b = run$one_b
+    #one_b = run$one_b # fs doesn't think this works
+    one_b = sapply(runs, function(x) x$one_b) 
+    
     if (one_b){
       b = post[which(par_names == 'b')]
       # If we also need KW (multiple a's), replicate b to match K
@@ -998,14 +1004,17 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
     }
     
     # CASE 2: KW = FALSE → 2D weight array [N_cores x N] (what actually happens)
+    # doesn't weight on pollen dispersion by taxa
+    # will only weight on taxa production by taxa
   } else {
     w = array(0, c(N_cores, N))   #  initialize 2D array
-    for (i in 1:N_cores){         #  loop over cores
-      for (j in 1:N){             #  loop over all locations
+    for (i in 1:N_cores){         #  loop over pollen cores
+      for (j in 1:N){             #  loop over all grid cells
         # if (j != idx_cores[i]){ #  commented out self-weight skip
         if (kernel == 'gaussian'){
           w[i,j] = exp(-(d[i,j]*d[i,j])/(psi*psi))  # Gaussian weight
-        } else if (kernel == 'pl'){
+        } else if (kernel == 'pl'){ # Kernel is pl in this case
+          # a = shape parameter, b = tail parameter
           w[i,j] = (b-1) * (b-2) / (2 * pi * a  * a) * (1 + d[i,j] / a) ^ (-b)  # Power-law
         }
         # }  
@@ -1105,23 +1114,26 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
 
 # Function to calculate the total potential neighborhood weighting
 # Used to determine the normalization constant for the non-local contribution
-build_sumw_pot <- function(post, K, N_pot, d_pot, run){
+build_sumw_pot <- function(post, K, N_pot, d_pot, runs){
   
   # Remove rows where the distance is effectively zero (to avoid self-weight at the origin)
   d_pot = d_pot[!(d_pot[,1] < 1e-8), ]  
   
   # KW flag indicates whether we need a weight per taxa (TRUE → multiple weights)
-  KW = FALSE  
+  KW = FALSE  # Currently, though the one_psi is null so KW ends up being TRUE
   
   # Identify which kernel to use: "gaussian" or "pl" (power-law)
-  kernel = run$kernel  
+  # kernel = run$kernel  
+  kernel = sapply(runs, function(x) x$kernel) 
   
   # Extract base parameter names from the posterior (strip indices like [1])
   par_names  = unlist(lapply(names(post), function(x) strsplit(x, "\\[")[[1]][1]))  
   
   # Gaussian kernel
   if (kernel=='gaussian'){
-    one_psi = run$one_psi  # flag: is psi shared across all taxa?
+    # FS - Issue, one_psi doesn't exist in runs
+    one_psi = runs$one_psi  # flag: is psi shared across all taxa?
+   
     
     if (one_psi){
       # single psi value used for all taxa
@@ -1145,8 +1157,8 @@ build_sumw_pot <- function(post, K, N_pot, d_pot, run){
     
     # Power-law kernel
   } else if (kernel=='pl'){
-    one_a = run$one_a  # flag: is a (range) shared across taxa?
-    one_b = run$one_b  # flag: is b (shape) shared across taxa?
+    one_a = sapply(runs, function(x) x$one_a)   # flag: is a (range) shared across taxa?
+    one_b = sapply(runs, function(x) x$one_b)   # flag: is b (shape) shared across taxa?
     
     # Handle 'a' parameter
     if (one_a){
@@ -1896,6 +1908,8 @@ split_mi <- function(meta){
     print("Centers worked")
     
     # Distances between our grid cell and all the other non-na cells.
+    # still has to look thorugh a maximum amount of grid cells
+    # FS - FIX ME
     dmat = fields::fields.rdist.near(
       matrix(centers_ll[idx,], nrow = 1),
       matrix(centers, ncol = 2),
