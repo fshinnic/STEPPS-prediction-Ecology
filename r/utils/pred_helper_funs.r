@@ -946,6 +946,7 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
   # GAUSSIAN KERNEL
   if (kernel=='gaussian'){
     # one_psi = run$one_psi  # Check if psi is shared across all taxa
+    # they won't use this though, since we have a "PL"
     one_psi = sapply(runs, function(x) x$one_psi) 
     if (one_psi){
       # Use single psi value (shared across K taxa)
@@ -984,6 +985,7 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
   }
   
   # CASE 1: KW = TRUE → 3D weight array [K x N_cores x N]
+  # happens because one_a = true
   if (KW){
     w = array(0, c(K, N_cores, N))   # initialize 3D array
     for (k in 1:K){                  # loop over taxa
@@ -1003,7 +1005,7 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
       }
     }
     
-    # CASE 2: KW = FALSE → 2D weight array [N_cores x N] (what actually happens)
+    # CASE 2: KW = FALSE → 2D weight array [N_cores x N]
     # doesn't weight on pollen dispersion by taxa
     # will only weight on taxa production by taxa
   } else {
@@ -1114,86 +1116,94 @@ build_weight_matrix <- function(post, d, idx_cores, N, N_cores, run){
 
 # Function to calculate the total potential neighborhood weighting
 # Used to determine the normalization constant for the non-local contribution
-build_sumw_pot <- function(post, K, N_pot, d_pot, runs){
+# Function to calculate the total potential neighborhood weighting
+# Returns normalization constant(s) for the non-local contribution
+build_sumw_pot <- function(cal_post, K, N_pot, d_pot, runs){
   
-  # Remove rows where the distance is effectively zero (to avoid self-weight at the origin)
-  d_pot = d_pot[!(d_pot[,1] < 1e-8), ]  
+  # Ensure 'cal_post' is a named vector
+  if (is.null(names(cal_post)))
+    stop("cal_post must be a named vector with parameters a, b, psi")
   
-  # KW flag indicates whether we need a weight per taxa (TRUE → multiple weights)
-  KW = FALSE  # Currently, though the one_psi is null so KW ends up being TRUE
+  # Remove rows where the distance is effectively zero (to avoid self-weight)
+  d_pot = d_pot[!(d_pot[,1] < 1e-8), ]
   
-  # Identify which kernel to use: "gaussian" or "pl" (power-law)
-  # kernel = run$kernel  
+  # Flag: need per-taxa weights?
+  KW = FALSE
+  
+  # Kernel type (assume same for all runs)
   kernel = sapply(runs, function(x) x$kernel) 
+  #kernel = runs[[1]]$kernel
+  # Remove rows where distance ~0
+  d_pot = d_pot[d_pot[,1] > 1e-8, ]
   
-  # Extract base parameter names from the posterior (strip indices like [1])
-  par_names  = unlist(lapply(names(post), function(x) strsplit(x, "\\[")[[1]][1]))  
+  # Base parameter names
+  par_names = sub("\\[.*","", names(cal_post))
   
-  # Gaussian kernel
-  if (kernel=='gaussian'){
-    # FS - Issue, one_psi doesn't exist in runs
-    one_psi = runs$one_psi  # flag: is psi shared across all taxa?
-   
-    
+  if (kernel == "gaussian"){
+    # Gaussian kernel (may not be used in your data)
+   # one_psi = runs[[1]]$one_psi
+    one_psi - sapply(runs, function(x) x$one_psi) 
     if (one_psi){
-      # single psi value used for all taxa
-      psi = post[which(par_names == 'psi')]
+      psi = cal_post[par_names == "psi"]
     } else {
-      # different psi per taxa → need KW = TRUE
-      KW  = TRUE
-      psi = post[which(par_names == 'psi')]
+      KW = TRUE
+      psi = cal_post[par_names == "psi"]
     }
     
     if (KW){
-      # Compute sum of weighted contributions for each taxa separately
-      sum_w = rep(NA, K)
-      for (k in 1:K)
-        # sum over all potential distances, weighted by number of points at that distance
-        sum_w[k] = sum(d_pot[,2] * exp(-d_pot[,1]^2 / psi[k]^2))
+      sum_w = numeric(K)
+      for (k in 1:K){
+        sum_w[k] = sum(d_pot[,2] * exp(-d_pot[,1]^2 / psi[k]^2), na.rm = TRUE)
+      }
     } else {
-      # single psi for all taxa → sum once
-      sum_w = sum(d_pot[,2] * exp(-d_pot[,1]^2 / psi^2))
+      sum_w = sum(d_pot[,2] * exp(-d_pot[,1]^2 / psi^2), na.rm = TRUE)
     }
     
+  } else if (kernel == "pl"){
     # Power-law kernel
-  } else if (kernel=='pl'){
-    one_a = sapply(runs, function(x) x$one_a)   # flag: is a (range) shared across taxa?
-    one_b = sapply(runs, function(x) x$one_b)   # flag: is b (shape) shared across taxa?
+    #one_a = runs[[1]]$one_a
+    #one_b = runs[[1]]$one_b
+    one_a = sapply(runs, function(x) x$one_a) 
+    one_b = sapply(runs, function(x) x$one_b) 
     
-    # Handle 'a' parameter
+    
     if (one_a){
-      a = post[which(par_names == 'a')]
+      a = cal_post[par_names == "a"]
     } else {
       KW = TRUE
-      a = post[which(par_names == 'a')]
+      a = cal_post[par_names == "a"]
     }
     
-    # Handle 'b' parameter
     if (one_b){
-      b = post[which(par_names == 'b')]
-      # If multiple 'a's, replicate 'b' to match K
+      b = cal_post[par_names == "b"]
       if (KW) b = rep(b, K)
     } else {
       KW = TRUE
-      b  = post[which(par_names == 'b')]
+      b = cal_post[par_names == "b"]
     }
     
     if (KW){
-      # compute sum of weighted contributions for each taxa separately
-      sum_w = rep(NA, K)
-      for (k in 1:K)
-        sum_w[k] = sum( d_pot[,2] * 
-                          (b[k]-1) * (b[k]-2) / (2 * pi * a[k]^2) * 
-                          (1 + d_pot[,1] / a[k])^(-b[k]) )
+      sum_w = numeric(K)
+      for (k in 1:K){
+        sum_w[k] = sum(
+          d_pot[,2] *
+            (b[k]-1)*(b[k]-2)/(2*pi*a[k]^2) *
+            (1 + d_pot[,1]/a[k])^(-b[k]),
+          na.rm = TRUE
+        )
+      }
     } else {
-      # single a,b → sum once
-      sum_w = sum( d_pot[,2] * 
-                     (b-1) * (b-2) / (2 * pi * a^2) * 
-                     (1 + d_pot[,1] / a)^(-b) )
+      sum_w = sum(
+        d_pot[,2] *
+          (b-1)*(b-2)/(2*pi*a^2) *
+          (1 + d_pot[,1]/a)^(-b),
+        na.rm = TRUE
+      )
     }
+  } else {
+    stop("Unknown kernel type: ", kernel)
   }
   
-  # Return the normalization constant(s)
   return(sum_w)
 }
 

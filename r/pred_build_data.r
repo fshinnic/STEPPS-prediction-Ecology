@@ -480,7 +480,6 @@ if (kernel=='pl'){ # Power Law is true
   }
 }
 
-# FS - START HERE 1/22/2026 - Check more what this function does
 
 # FS - changed since runs appears to have multiple layers
 # create the weighting matrix for pollen dispersion for each of the 12 taxa groups
@@ -506,13 +505,21 @@ N_pot     = nrow(d_pot)
 # FS - START here
 # FS - they made the resolution coarses, but d_hood doesn't exist
 # w_coarse  = build_sumw_pot(cal_post, K, length(d_hood), cbind(t(d_hood), rep(1, length(d_hood))), run)
-w_coarse  = build_sumw_pot(cal_post, K, N_pot, d_pot, runs) # this seems to work...
+w_coarse  = build_sumw_pot(cal_post, K, N_pot, d_pot, runs) 
 
 gamma_new = recompute_gamma(w_coarse, sum_w_pot, gamma)
+
+#### testing ####
+
+dim(cal_post)
+str(cal_post)
+
+
 
 #####################################################################################
 # veg run pars
 #####################################################################################
+# phi, gamma, mu_gamma, log_a, a, log_lik
 par_names = sapply(strsplit(colnames(veg_post), '\\.'), function(x) x[[1]])
 eta = veg_post[,which(par_names == 'eta')]
 rho = veg_post[,which(par_names == 'rho')]
