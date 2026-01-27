@@ -1207,24 +1207,25 @@ build_sumw_pot <- function(cal_post, K, N_pot, d_pot, runs){
   return(sum_w)
 }
 
-# # build the total potential neighborhood weighting
-# build_sum_w_pot <- function(psi, rescale){
-#   
-#   x_pot = seq(-528000, 528000, by=8000)
-#   y_pot = seq(-416000, 416000, by=8000)
-#   coord_pot = expand.grid(x_pot, y_pot)
-#   
-#   d_pot = t(rdist(matrix(c(0,0), ncol=2), as.matrix(coord_pot, ncol=2))/rescale)
-#   d_pot = unname(as.matrix(count(d_pot)))
-#   
-#   N_pot = nrow(d_pot)
-#   
-#   sum_w_pot = 0
-#   for (v in 1:N_pot){
-#     sum_w_pot = sum_w_pot +  d_pot[v,2] *  exp(-(d_pot[v,1]/psi)^2)
-#   }
-#   return(sum_w_pot)
-# }
+# build the total potential neighborhood weighting
+# only ture for Gassian
+build_sum_w_pot <- function(psi, rescale){
+
+  x_pot = seq(-528000, 528000, by=8000)
+  y_pot = seq(-416000, 416000, by=8000)
+  coord_pot = expand.grid(x_pot, y_pot)
+
+  d_pot = t(rdist(matrix(c(0,0), ncol=2), as.matrix(coord_pot, ncol=2))/rescale)
+  d_pot = unname(as.matrix(count(d_pot)))
+
+  N_pot = nrow(d_pot)
+
+  sum_w_pot = 0
+  for (v in 1:N_pot){
+    sum_w_pot = sum_w_pot +  d_pot[v,2] *  exp(-(d_pot[v,1]/psi)^2)
+  }
+  return(sum_w_pot)
+}
 
 # rescale gamma when the coarse grid is used
 recompute_gamma <- function(w_coarse, sum_w_pot, gamma){

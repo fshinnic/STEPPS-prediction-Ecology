@@ -507,31 +507,28 @@ N_pot     = nrow(d_pot)
 # w_coarse  = build_sumw_pot(cal_post, K, length(d_hood), cbind(t(d_hood), rep(1, length(d_hood))), run)
 w_coarse  = build_sumw_pot(cal_post, K, N_pot, d_pot, runs) 
 
-gamma_new = recompute_gamma(w_coarse, sum_w_pot, gamma)
-
-#### testing ####
-
-dim(cal_post)
-str(cal_post)
-
-
+# FS - This is only for the gaussian since it requires psi
+# gamma_new = recompute_gamma(w_coarse, sum_w_pot, gamma)
 
 #####################################################################################
 # veg run pars
 #####################################################################################
 # phi, gamma, mu_gamma, log_a, a, log_lik
 par_names = sapply(strsplit(colnames(veg_post), '\\.'), function(x) x[[1]])
+
+# extracts eta and rho (spatial smoothing) for each taxa
 eta = veg_post[,which(par_names == 'eta')]
 rho = veg_post[,which(par_names == 'rho')]
 
 if (draw){
+  # doesn't happen
   iter = sample(seq(1,nrow(veg_post)), 1)
   
   eta = eta[iter,]
   rho = rho[iter,]
   
 } else {
-  
+  # what happens
   eta = colMeans(eta)
   rho = colMeans(rho)
   
@@ -570,6 +567,7 @@ dirName = paste0('runs/', N_knots, 'knots_', tmin, 'to', tmax, 'ybp_', suff)
 if (one_time){
   dirName = paste0('runs/space_slices_', suff)
 }
+
 if (AR){
   dirName = paste0(dirName, '_ar')
 }
@@ -599,15 +597,15 @@ save(K, N, T, N_cores, N_knots, res,
      idx_cores, 
      d_knots, d_inter, w, #d_pol, #d, 
      lag,
-     #        P, N_p, sum_w_pot,
+     P, N_p, 
      meta_pol, meta_pol_all,
-     sum_w_pot, 
+     # sum_w_pot, 
      #pollen_check, # FS - Doesn't exist still...
      knot_coords,
      centers_pls, centers_veg, centers_pol, taxa, ages, y_veg, N_pls,
      file=paste0(fname, '.rdata'))
 
-# convert to row-major # FS - DOESN"T EXIST
+# convert to row-major 
 if (KW){
   w_new = vector(length=0)
   for (k in 1:K)
@@ -620,8 +618,9 @@ dump(c('K', 'N', 'T', 'N_cores', 'N_knots', 'res',
        'y', 
        'idx_cores', 
        'd_knots', 'd_inter', 'w', #'d_pol', #'d', 
-       'lag',
-       'sum_w_pot'),
+       'lag'
+      # 'sum_w_pot'
+       ),
      file=paste0(fname, '.dump'))
 
 ##########################################################################################################################
