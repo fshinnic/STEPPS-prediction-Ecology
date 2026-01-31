@@ -444,147 +444,324 @@ write_par_vals <- function(post_dat, taxa, subDir, N_pars){
   
 }
 
-build_props_full <- function(post, rho, eta, T, K, d, d_inter, d_knots, od, mpp, mu0, res){
+# FS - removed "od" as an argument since it is not named and is commented out
+# FS - removed "res" since it isn't present anywhere in the function... 
+build_props_full <- function(cal_post, rho, eta, T, K, d, d_inter, d_knots, mpp, mu0){
   
-  N = nrow(d_inter)
-  N_knots = ncol(d_inter)
-  niter   = dim(post[,1,])[1] 
-  
-  W = K-1
-  
-  mu_g = array(NA, dim=c(N*T, W, niter))
-  g    = array(NA, dim=c(N*T, W, niter))
-  r    = array(NA, dim=c(N*T, K, niter))
-  #   Halpha = array(NA, dim=c(N_knots, W, niter))
-  ones = matrix(1, nrow=N*T, ncol=1)
-  
-  Halpha_s = array(NA, dim=c(N, W, niter))
-  
-  if (mu0){
-    Halpha_t = array(NA, dim=c(N, W*(T-1), niter))
-  } else {
-    Halpha_t = array(NA, dim=c(N, W*T, niter))
-  }
-  #sumHalpha = array(NA, dim=c(T, W, niter))
-  
-  print("Done allocating")
-  
-  col_names  = colnames(post[,1,])
-#   col_substr = sapply(strsplit(col_names, "\\["), function(x) x[1])
-#   par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\[")[[1]][1]))
-  par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\.")[[1]][1]))  
-
-  ksi    = post[,1, which(par_names == 'ksi')]
-  
-  alpha_s_start = min(which(par_names == 'alpha_s'))
-  alpha_t_start = min(which(par_names == 'alpha_t'))
-   
-#   if (od){
-#     x = matrix(1, nrow=(N*T), ncol=1)
-#     N_p = N*T
-#     
-#     temp = qr(x)
-#     Q = qr.Q(temp)
-#     #     R = qr.R(temp)
-#     
-#     #     P = Q %*% t(Q)
-#   }
-  
-  for (k in 1:W){
-    print(k)
     
-    mu     = post[,1,which(par_names == 'mu')[k]]
-    sigma  = post[,1,which(par_names == 'sigma')[k]]
-    lambda = post[,1,which(par_names == 'lambda')[k]]
+    # post = cal_post - just one draw
+    post = rstan::extract(cal_fit, permuted=FALSE, inc_warmup=FALSE)
+    
+    # post ends up being too large, so this code things it, taking every 10th draw
+    thin <- 10
+    post <- post[seq(1, dim(post)[1], by = thin), , , drop = FALSE]
+    
+
+    N = nrow(d_inter)
+    N_knots = ncol(d_inter)
+    # niter   = dim(post[,1,])[1] # not extracting correctly
+    niter <- dim(post[,1,])[1]  # correction
+    
+    W = K-1
+    
+    # check size of objects:
+    # N; T; K; niter
+    
+    # cehck storage size of arrays
+    # 8 * N * T * K * niter / 1024^3 # way too large
+    
+    mu_g = array(NA, dim=c(N*T, W, niter))
+    g    = array(NA, dim=c(N*T, W, niter))
+    r    = array(NA, dim=c(N*T, K, niter))
+    #   Halpha = array(NA, dim=c(N_knots, W, niter))
+    ones = matrix(1, nrow=N*T, ncol=1)
+    
+    Halpha_s = array(NA, dim=c(N, W, niter))
     
     if (mu0){
-      mut_cols = seq(k, (T-1)*W) 
+      Halpha_t = array(NA, dim=c(N, W*(T-1), niter))
     } else {
-      mut_cols = seq(k, T*W, by=W)
+      Halpha_t = array(NA, dim=c(N, W*T, niter))
     }
-    col_names[which(par_names == 'mu_t')[mut_cols]]
-    mu_t = post[,1,which(par_names == 'mu_t')[mut_cols]]
+    #sumHalpha = array(NA, dim=c(T, W, niter))
     
-    alpha_s_cols = seq(alpha_s_start + k - 1, alpha_s_start + N_knots*W - 1, by=W)
-    col_names[alpha_s_cols]
-    alpha_s = post[,1,alpha_s_cols]
+    print("Done allocating")
     
-    #     g    = array(NA, dim=c(N*T, W, niter))
-    g_cols = seq(k, T*N*W, by=W)
-    col_names[which(par_names == 'g')][g_cols]
-    g[,k,] = t(post[,1,which(par_names == 'g')[g_cols]])
-
-    C_s <- exp(-d_knots/rho[k])
-    c_s <- exp(-d_inter/rho[k])
-    C_s_inv = chol2inv(chol(C_s))
+    col_names  = colnames(post[,1,])
+    #   col_substr = sapply(strsplit(col_names, "\\["), function(x) x[1])
+    #   par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\[")[[1]][1]))
+    par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\.")[[1]][1]))  
     
-    cs_Csinv = c_s %*% C_s_inv
-
-    for (i in 1:niter){
+    # there is no KSI right now
+    ksi    = post[,1, which(par_names == 'ksi')]
+    
+    # fs - these dont exist; alpha ends up being infinity
+    alpha_s_start = min(which(par_names == 'alpha_s'))
+    alpha_t_start = min(which(par_names == 'alpha_t'))
+    
+    #   if (od){
+    #     x = matrix(1, nrow=(N*T), ncol=1)
+    #     N_p = N*T
+    #     
+    #     temp = qr(x)
+    #     Q = qr.Q(temp)
+    #     #     R = qr.R(temp)
+    #     
+    #     #     P = Q %*% t(Q)
+    #   }
+    
+    for (k in 1:W){
+      print(k)
       
-      # t=1
-      mu_g_idx = seq(1, N*T, by=T)
-      
-      Halpha_s[,k,i] = cs_Csinv %*% alpha_s[i,]
+      mu     = post[,1,which(par_names == 'mu')[k]]
+      sigma  = post[,1,which(par_names == 'sigma')[k]]
+      lambda = post[,1,which(par_names == 'lambda')[k]]
       
       if (mu0){
-        mu_g[mu_g_idx,k,i] = mu[i] + Halpha_s[,k,i] #cs_Csinv %*% alpha_s[i,]
+        mut_cols = seq(k, (T-1)*W) 
       } else {
-        mu_g[mu_g_idx,k,i] = mu[i] + mu_t[i,1] + Halpha_s[,k,i] #cs_Csinv %*% alpha_s[i,]
+        mut_cols = seq(k, T*W, by=W)
       }
-        
-      Q <- exp(-d_knots/lambda[i])
-      q <- exp(-d_inter/lambda[i])
-      Q_inv = chol2inv(chol(Q))
+      col_names[which(par_names == 'mu_t')[mut_cols]]
+      mu_t = post[,1,which(par_names == 'mu_t')[mut_cols]]
       
-      q_Qinv = q %*% Q_inv
-    
-      for (t in 2:T){
+      alpha_s_cols = seq(alpha_s_start + k - 1, alpha_s_start + N_knots*W - 1, by=W)
+      col_names[alpha_s_cols]
+      alpha_s = post[,1,alpha_s_cols]
       
-        alpha_t_cols = seq(alpha_t_start + (k-1)*(T-1) + t-1 - 1, alpha_t_start + N_knots*W*(T-1) - 1, by=W*(T-1))
-        col_names[alpha_t_cols]
-        alpha_t = post[,1,alpha_t_cols]
+      #     g    = array(NA, dim=c(N*T, W, niter))
+      g_cols = seq(k, T*N*W, by=W)
+      col_names[which(par_names == 'g')][g_cols]
+      g[,k,] = t(post[,1,which(par_names == 'g')[g_cols]])
+      
+      C_s <- exp(-d_knots/rho[k])
+      c_s <- exp(-d_inter/rho[k])
+      C_s_inv = chol2inv(chol(C_s))
+      
+      cs_Csinv = c_s %*% C_s_inv
+      
+      for (i in 1:niter){
         
-        mu_g_idx = seq(t, N*T, by=T)
+        # t=1
+        mu_g_idx = seq(1, N*T, by=T)
+        
+        Halpha_s[,k,i] = cs_Csinv %*% alpha_s[i,]
+        
         if (mu0){
-          Halpha_t[,(k-1)*(T-1) + t-1,i] = q_Qinv %*% alpha_t[i,] 
-          mu_g[mu_g_idx,k,i] = mu[i] + mu_t[i,t] + cs_Csinv %*% alpha_s[i,] + Halpha_t[,(k-1)*(T-1) + t-1,i] #q_Qinv %*% alpha_t[i,] 
+          mu_g[mu_g_idx,k,i] = mu[i] + Halpha_s[,k,i] #cs_Csinv %*% alpha_s[i,]
         } else {
-          mu_g[mu_g_idx,k,i] = mu[i] + mu_t[i,t-1] + cs_Csinv %*% alpha_s[i,] + q_Qinv %*% alpha_t[i,] 
+          mu_g[mu_g_idx,k,i] = mu[i] + mu_t[i,1] + Halpha_s[,k,i] #cs_Csinv %*% alpha_s[i,]
         }
-      
+        
+        Q <- exp(-d_knots/lambda[i])
+        q <- exp(-d_inter/lambda[i])
+        Q_inv = chol2inv(chol(Q))
+        
+        q_Qinv = q %*% Q_inv
+        
+        for (t in 2:T){
+          
+          alpha_t_cols = seq(alpha_t_start + (k-1)*(T-1) + t-1 - 1, alpha_t_start + N_knots*W*(T-1) - 1, by=W*(T-1))
+          col_names[alpha_t_cols]
+          alpha_t = post[,1,alpha_t_cols]
+          
+          mu_g_idx = seq(t, N*T, by=T)
+          if (mu0){
+            Halpha_t[,(k-1)*(T-1) + t-1,i] = q_Qinv %*% alpha_t[i,] 
+            mu_g[mu_g_idx,k,i] = mu[i] + mu_t[i,t] + cs_Csinv %*% alpha_s[i,] + Halpha_t[,(k-1)*(T-1) + t-1,i] #q_Qinv %*% alpha_t[i,] 
+          } else {
+            mu_g[mu_g_idx,k,i] = mu[i] + mu_t[i,t-1] + cs_Csinv %*% alpha_s[i,] + q_Qinv %*% alpha_t[i,] 
+          }
+          
+        }
       }
     }
-  }
-  
-  print("Log-ratio transforming g")
-  for (i in 1:niter){
     
-    sum_exp_g = rowSums(exp(g[,,i]))
-    
-    #     ti <- proc.time()
-    
-    # additive log-ratio transformation
-    # r    = array(NA, dim=c(N*T, K, niter))
-    for (k in 1:W)
+    print("Log-ratio transforming g")
+    for (i in 1:niter){
+      
+      sum_exp_g = rowSums(exp(g[,,i]))
+      
+      #     ti <- proc.time()
+      
+      # additive log-ratio transformation
+      # r    = array(NA, dim=c(N*T, K, niter))
+      for (k in 1:W)
+        for (j in 1:(N*T))
+          r[j,k,i] <- exp(g[j,k,i]) / (1 + sum_exp_g[j])
+      
       for (j in 1:(N*T))
-        r[j,k,i] <- exp(g[j,k,i]) / (1 + sum_exp_g[j])
+        r[j,K,i] <- 1 / (1 + sum_exp_g[j])
+      #     
+      #     tj <- proc.time()
+      #     print("OLD Build r:")
+      #     print(tj-ti)
+      #     
+      #     r[,,i] <- sum2one_constraint(K, N, T, as.matrix(g[,,i]), sum_exp_g) 
+      #     tk <- proc.time()
+      #     print("NEW Build r:")
+      #     print(tk-tj)
+    }
     
-    for (j in 1:(N*T))
-      r[j,K,i] <- 1 / (1 + sum_exp_g[j])
-    #     
-    #     tj <- proc.time()
-    #     print("OLD Build r:")
-    #     print(tj-ti)
-    #     
-    #     r[,,i] <- sum2one_constraint(K, N, T, as.matrix(g[,,i]), sum_exp_g) 
-    #     tk <- proc.time()
-    #     print("NEW Build r:")
-    #     print(tk-tj)
-  }
-  
-  return(list(mu_g=mu_g, r=r, g=g, Halpha_s=Halpha_s, Halpha_t=Halpha_t))
+    return(list(mu_g=mu_g, r=r, g=g, Halpha_s=Halpha_s, Halpha_t=Halpha_t))
 }
+
+
+# this build_props_full tries to construct proportions for each taxa at once 
+# results in too large storages
+# build_props_full <- function(cal_post, rho, eta, T, K, d, d_inter, d_knots, mpp, mu0){
+#   
+#   
+#   # post = cal_post - just one draw
+#   post = rstan::extract(cal_fit, permuted=FALSE, inc_warmup=FALSE)
+#   N = nrow(d_inter)
+#   N_knots = ncol(d_inter)
+#   # niter   = dim(post[,1,])[1] # not extracting correctly
+#   niter <- dim(post[,1,])[1]  # correction
+#   
+#   W = K-1
+#   
+#   # check size of objects:
+#   # N; T; K; niter
+#   
+#   # cehck storage size of arrays
+#   # 8 * N * T * K * niter / 1024^3 # way too large
+#   
+#   mu_g = array(NA, dim=c(N*T, W, niter))
+#   g    = array(NA, dim=c(N*T, W, niter))
+#   r    = array(NA, dim=c(N*T, K, niter))
+#   #   Halpha = array(NA, dim=c(N_knots, W, niter))
+#   ones = matrix(1, nrow=N*T, ncol=1)
+#   
+#   Halpha_s = array(NA, dim=c(N, W, niter))
+#   
+#   if (mu0){
+#     Halpha_t = array(NA, dim=c(N, W*(T-1), niter))
+#   } else {
+#     Halpha_t = array(NA, dim=c(N, W*T, niter))
+#   }
+#   #sumHalpha = array(NA, dim=c(T, W, niter))
+#   
+#   print("Done allocating")
+#   
+#   col_names  = colnames(post[,1,])
+# #   col_substr = sapply(strsplit(col_names, "\\["), function(x) x[1])
+# #   par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\[")[[1]][1]))
+#   par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\.")[[1]][1]))  
+# 
+#   ksi    = post[,1, which(par_names == 'ksi')]
+#   
+#   # fs - these dont exist
+#   alpha_s_start = min(which(par_names == 'alpha_s'))
+#   alpha_t_start = min(which(par_names == 'alpha_t'))
+#    
+# #   if (od){
+# #     x = matrix(1, nrow=(N*T), ncol=1)
+# #     N_p = N*T
+# #     
+# #     temp = qr(x)
+# #     Q = qr.Q(temp)
+# #     #     R = qr.R(temp)
+# #     
+# #     #     P = Q %*% t(Q)
+# #   }
+#   
+#   for (k in 1:W){
+#     print(k)
+#     
+#     mu     = post[,1,which(par_names == 'mu')[k]]
+#     sigma  = post[,1,which(par_names == 'sigma')[k]]
+#     lambda = post[,1,which(par_names == 'lambda')[k]]
+#     
+#     if (mu0){
+#       mut_cols = seq(k, (T-1)*W) 
+#     } else {
+#       mut_cols = seq(k, T*W, by=W)
+#     }
+#     col_names[which(par_names == 'mu_t')[mut_cols]]
+#     mu_t = post[,1,which(par_names == 'mu_t')[mut_cols]]
+#     
+#     alpha_s_cols = seq(alpha_s_start + k - 1, alpha_s_start + N_knots*W - 1, by=W)
+#     col_names[alpha_s_cols]
+#     alpha_s = post[,1,alpha_s_cols]
+#     
+#     #     g    = array(NA, dim=c(N*T, W, niter))
+#     g_cols = seq(k, T*N*W, by=W)
+#     col_names[which(par_names == 'g')][g_cols]
+#     g[,k,] = t(post[,1,which(par_names == 'g')[g_cols]])
+# 
+#     C_s <- exp(-d_knots/rho[k])
+#     c_s <- exp(-d_inter/rho[k])
+#     C_s_inv = chol2inv(chol(C_s))
+#     
+#     cs_Csinv = c_s %*% C_s_inv
+# 
+#     for (i in 1:niter){
+#       
+#       # t=1
+#       mu_g_idx = seq(1, N*T, by=T)
+#       
+#       Halpha_s[,k,i] = cs_Csinv %*% alpha_s[i,]
+#       
+#       if (mu0){
+#         mu_g[mu_g_idx,k,i] = mu[i] + Halpha_s[,k,i] #cs_Csinv %*% alpha_s[i,]
+#       } else {
+#         mu_g[mu_g_idx,k,i] = mu[i] + mu_t[i,1] + Halpha_s[,k,i] #cs_Csinv %*% alpha_s[i,]
+#       }
+#         
+#       Q <- exp(-d_knots/lambda[i])
+#       q <- exp(-d_inter/lambda[i])
+#       Q_inv = chol2inv(chol(Q))
+#       
+#       q_Qinv = q %*% Q_inv
+#     
+#       for (t in 2:T){
+#       
+#         alpha_t_cols = seq(alpha_t_start + (k-1)*(T-1) + t-1 - 1, alpha_t_start + N_knots*W*(T-1) - 1, by=W*(T-1))
+#         col_names[alpha_t_cols]
+#         alpha_t = post[,1,alpha_t_cols]
+#         
+#         mu_g_idx = seq(t, N*T, by=T)
+#         if (mu0){
+#           Halpha_t[,(k-1)*(T-1) + t-1,i] = q_Qinv %*% alpha_t[i,] 
+#           mu_g[mu_g_idx,k,i] = mu[i] + mu_t[i,t] + cs_Csinv %*% alpha_s[i,] + Halpha_t[,(k-1)*(T-1) + t-1,i] #q_Qinv %*% alpha_t[i,] 
+#         } else {
+#           mu_g[mu_g_idx,k,i] = mu[i] + mu_t[i,t-1] + cs_Csinv %*% alpha_s[i,] + q_Qinv %*% alpha_t[i,] 
+#         }
+#       
+#       }
+#     }
+#   }
+#   
+#   print("Log-ratio transforming g")
+#   for (i in 1:niter){
+#     
+#     sum_exp_g = rowSums(exp(g[,,i]))
+#     
+#     #     ti <- proc.time()
+#     
+#     # additive log-ratio transformation
+#     # r    = array(NA, dim=c(N*T, K, niter))
+#     for (k in 1:W)
+#       for (j in 1:(N*T))
+#         r[j,k,i] <- exp(g[j,k,i]) / (1 + sum_exp_g[j])
+#     
+#     for (j in 1:(N*T))
+#       r[j,K,i] <- 1 / (1 + sum_exp_g[j])
+#     #     
+#     #     tj <- proc.time()
+#     #     print("OLD Build r:")
+#     #     print(tj-ti)
+#     #     
+#     #     r[,,i] <- sum2one_constraint(K, N, T, as.matrix(g[,,i]), sum_exp_g) 
+#     #     tk <- proc.time()
+#     #     print("NEW Build r:")
+#     #     print(tk-tj)
+#   }
+#   
+#   return(list(mu_g=mu_g, r=r, g=g, Halpha_s=Halpha_s, Halpha_t=Halpha_t))
+# 
+# }
 
 
 get_corrections <- function(post_dat, rho, eta, T, K, d_inter, d_knots){

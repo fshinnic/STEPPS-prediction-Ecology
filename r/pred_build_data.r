@@ -69,6 +69,9 @@ path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
 # Only non-varve lakes of interest
 # path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
 
+# only no-varve Minnesota lakes
+#path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
+
 if (bchron){
   path_age_samples    = 'data/bchron_ages'
 } else {
@@ -432,6 +435,8 @@ col_names = colnames(cal_post[,1,])
 # format parameters correctly
 par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\[")[[1]][1]))
 
+# FS - changing DRAW to true so the acutal bayesian funciton works
+draw = TRUE
 if (draw) { # draw = FALSE
   draw_cal = sample(seq(1, dim(cal_post)[1]), 1)
   cal_post     = cal_post[draw_cal,1,]
