@@ -619,6 +619,7 @@ if (one_time){
 
 fname = file.path(dirName, subDir, 'input')
 
+# saves parameters
 # note that w is column-major 
 save(K, N, T, N_cores, N_knots, res,
      gamma, phi, rho, eta,
@@ -642,6 +643,7 @@ if (KW){
   w = array(w_new, c(K, N_cores, N))  
 }
 
+# dump file can be read by stan!!
 dump(c('K', 'N', 'T', 'N_cores', 'N_knots', 'res',
        'gamma', 'phi', 'rho', 'eta',
        'y', 

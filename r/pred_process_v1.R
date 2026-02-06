@@ -1,6 +1,7 @@
 # Code from r/pred_process_full.r in stepps-prediciton
 # appears to be original, un cleaned code for running STEPPS
 
+# all  still exist - 2/6/2026
 library(Rcpp)
 library(inline)
 library(ggplot2)
@@ -8,9 +9,10 @@ library(rstan)
 library(reshape)
 library(fields)
 
+# 
 source('r/utils/pred_plot_funs.r')
 source('r/utils/pred_helper_funs.r')
-source('r/read_stanbin.r')
+source('r/utils/read_stanbin.r')
 
 # suff_dat = '12taxa_457cells_77knots_0to2000ypb_umwE_3by_v0.3'
 # suff_fit = '12taxa_457cells_77knots_0to2000ypb_umwE_3by_od_mpp_full'
@@ -36,17 +38,16 @@ source('r/read_stanbin.r')
 # suff_dat = '12taxa_699cells_120knots_0to2000ypb_G_umw_3by_v0.3'
 # suff_fit = '12taxa_699cells_120knots_0to2000ypb_G_umw_3by_tmp'
 
+# FS chosen files
+suff_fit = "120knots_150to2150ybp_PL_test_grid_specs_v2.4_mean_ar"
+run = "run1"
+load(file.path("runs", suff_fit, run, "input.rdata"))
+
 # where to put the figures
 subDir <- paste("figures/", suff_fit, sep='')
-save_plots = TRUE
 suff = ''
 
-# od         = TRUE
-# bt         = TRUE
-# mpp        = FALSE
-# mut        = FALSE
-# save_plots = TRUE
-
+# parameters for pred_process_full function
 mu0        = TRUE
 od         = TRUE
 bt         = TRUE
@@ -54,30 +55,33 @@ mpp        = TRUE
 mut        = FALSE
 save_plots = TRUE
 
+# creates path to paste in figures
 create_figure_path(subDir)
 
-load(paste('r/dump/', suff_dat, '.rdata', sep=''))
+# FS - need to figure out where this comes from
+# Construct file path for the Stan binary output
+fname <- sprintf('output/%s.bin', suff_fit)
 
-if (!file.exists(paste0('output/', suff_fit,'.rdata'))){
-  #   fname = sprintf('output/%s.csv', suff_fit)
-  #   fname = sprintf('output/%s.csv', suff_fit)
-  #   system(sprintf('r/fixup.pl %s', fname)) # is this broken now?
-  #   fit = read_stan_csv(fname)
-  #   post = rstan::extract(fit, permuted=FALSE, inc_warmup=FALSE)
-  #   save(post, file=paste0('output/', suff_fit,'.rdata'))
-  #   rm(fit)
-  fname   = sprintf('output/%s.bin', suff_fit)
-  object  = read_stanbin(fname)
-  #   samples = cbind(object$samples[,5:ncol(object$samples)], object$samples[,1])
-  #post = array(0, c(nrow(object$samples), 1, ncol(object$samples)-5))   
-  samples = data.frame(object$samples[,5:ncol(object$samples)], object$samples[,1])
-  #   colnames(samples) = colnames(object$samples cbind(colnames(object$samples[,5:ncol(object$samples)]), name(object$samples[,1])))
-  post = array(0, c(nrow(samples), 1, ncol(samples)))   
-  post[,1,] = as.matrix(samples) 
-  dimnames(post)[[3]] = colnames(samples)
+# Read Stan binary output (custom function)
+object <- read_stanbin(fname)
+
+# Extract posterior samples: drop first 4 columns (usually diagnostics) and keep first column at end
+samples <- data.frame(object$samples[, 5:ncol(object$samples)], object$samples[, 1])
+
+# Convert to 3D array: iterations x chains x parameters
+post <- array(0, c(nrow(samples), 1, ncol(samples)))
+post[, 1, ] <- as.matrix(samples)
+
+# Assign parameter names
+dimnames(post)[[3]] <- colnames(samples)
+
+# Fallback: if .rdata already exists, load it instead
+if (!file.exists(paste0('output/', suff_fit, '.rdata'))) {
+  save(post, file = paste0('output/', suff_fit, '.rdata'))
 } else {
-  load(paste0('output/', suff_fit,'.rdata'))
+  load(paste0('output/', suff_fit, '.rdata'))
 }
+
 
 W = K-1
 
