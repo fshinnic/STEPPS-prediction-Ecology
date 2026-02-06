@@ -492,6 +492,8 @@ build_props_full <- function(cal_post, rho, eta, T, K, d, d_inter, d_knots, mpp,
     #   par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\[")[[1]][1]))
     par_names  = unlist(lapply(col_names, function(x) strsplit(x, "\\.")[[1]][1]))  
     
+    # check
+    unique(par_names)
     # there is no KSI right now
     ksi    = post[,1, which(par_names == 'ksi')]
     

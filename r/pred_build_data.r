@@ -14,6 +14,30 @@ source(file.path(getwd(), "r/utils/pred_helper_funs.r"))
 
 getwd()
 
+# #####
+# // STEPPS pollen-vegetation prediction model with no temporal component
+# // Implemented using Stan with a user provided manual gradient function
+# // Gradient function parallelized using openMP (can make use of ALL cores within a node)
+# // data inputs must be passed using the dump file format
+# // Model inputs:
+# // K : number of taxa
+# // N : number of grid cells
+# // T : number of time intervals; in this case should be 1
+# // N_knots : number of knots for predictive process
+# // N_cores : number of pollen cores
+# // res : relative resolution of grid; should be 1 for 8 km, 3 for 24 km, and 5 for 40 km grids
+# // y : pollen counts; must be integers; slow-core fast-time stacked; dimension N_cores*T
+# // rho : smoothness parameter from spatial covariance vegetation model; dimension K
+# // eta : smoothness parameter from spatial covariance vegetation model; dimension K
+# // gamma : proportion of local pollen; dimension K
+# // sum_w_pot : vector of taxon-specific dispersal normalization factors; length K
+# // phi : pollen production parameter; dimension K
+# // idx_cores : vector that indexes core to grid cell number; length N_cores
+# // d_knots : distance matrix between knots; dimension N_knots by N_knots
+# // d_inter : distance matrix between cells and knots; dimension N by N_knots
+# // w :  vector of taxon-specific weight matrices; vector length K; matrix dimension N_cores by N
+
+
 ######################################################################################################################################
 # user defs
 ######################################################################################################################################
