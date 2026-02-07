@@ -1,0 +1,7 @@
+## Path names
+## path_grid=data/grid/umw_3by_v2.rdata
+## path_pls=data/pls_umw_v0.6.csv
+## path_pollen=data/sediment_ages_v1.0_varves.csv
+## path_cal=data/calibration/cal_pl_Ka_Kgamma_EPs_ALL_v0.4c1.csv
+## path_veg_data=data/veg_data_12taxa_6341cells_120knots_v0.4.rdata
+## path_veg_pars=data/veg_pars_120knots.rdata

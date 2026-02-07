@@ -217,6 +217,7 @@ meta        = meta[which(meta$state2 %in% states_pls),]
 
 centers_pls = data.frame(x=meta$x, y=meta$y)/rescale # megameters!
 
+
 # FS - Corrected for SP object; checks that seperated out the correct uppermidwest cells
 # plot(centers_pls[,1]*rescale, centers_pls[,2]*rescale, asp=1, axes=F,  col='antiquewhite4', xlab='',ylab='', pch=19, cex=0.2) # old code
 # plot(us.shp, add=T) # old code
@@ -450,6 +451,7 @@ KGAMMA = FALSE
 # FS -  to check that there is only one kernel object
 kernel <- sapply(runs, function(x) x$kernel)
 
+
 # phi = differential production
 # gamma = proportion of that cores pollen the given taxa producted in the grid cell
 # outputs iterations × chains × parameters
@@ -521,6 +523,7 @@ w <- build_weight_matrix(cal_post, d_pol, idx_cores, N, N_cores, runs[[1]])
 
 coord_pot = seq(-700000, 700000, by=8000)
 coord_pot = expand.grid(coord_pot, coord_pot)
+
 
 d_pot = t(rdist(matrix(c(0,0), ncol=2), as.matrix(coord_pot, ncol=2))/rescale)
 d_pot = unname(as.matrix(count(data.frame(d_pot))))
@@ -618,6 +621,7 @@ if (one_time){
 }
 
 fname = file.path(dirName, subDir, 'input')
+
 
 # saves parameters
 # note that w is column-major 
