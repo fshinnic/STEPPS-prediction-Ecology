@@ -1,5 +1,7 @@
 // Improted from STEPPS - PREDICTION (2/6/2026)
 
+// I think this is the actual STAN model
+
 // Spatio-temporal vegetation model; veg maps predicted from pollen counts
 // Latent vegetation modelled using a predictive process
 // Linked to multinomial pollen counts through an additive log-ratio sum to one constraint

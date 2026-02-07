@@ -38,10 +38,7 @@ source('r/utils/read_stanbin.r')
 # suff_dat = '12taxa_699cells_120knots_0to2000ypb_G_umw_3by_v0.3'
 # suff_fit = '12taxa_699cells_120knots_0to2000ypb_G_umw_3by_tmp'
 
-# FS chosen files
-suff_fit = "120knots_150to2150ybp_PL_test_grid_specs_v2.4_mean_ar"
-run = "run1"
-load(file.path("runs", suff_fit, run, "input.rdata"))
+
 
 # where to put the figures
 subDir <- paste("figures/", suff_fit, sep='')
