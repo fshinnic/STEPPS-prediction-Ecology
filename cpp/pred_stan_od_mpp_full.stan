@@ -4,6 +4,8 @@
 // Latent vegetation modeled using a predictive process
 // Linked to multinomial pollen counts through an additive log-ratio sum to one constraint
 
+// weighting to take gamma = mean(gamma[k]) and w[i, j] instead of accounting for taxa
+
 data {
 
   int<lower=0> K;       // number of species
@@ -14,9 +16,13 @@ data {
 
   array[N_cores * T, K] int y;
 
-  vector<lower=0>[K-1] rho;     // spatial covariance par
+  vector<lower=0>[K-1] rho;     // spatial covariance par (idk who it is k-1, it is taxa specific)
   vector<lower=0>[K-1] eta;     // space-time variance par
-  real<lower=0, upper=1> gamma; // local/long-distance dispersal par 
+  
+  
+   real<lower=0, upper=1> gamma; // local/long-distance dispersal par 
+ // vector<lower=0, upper=1>[K] gamma; // change to become taxa specific
+
  // real<lower=0> psi;            // pollen dispersal par - not actually used
 
   vector<lower=0>[K] phi;       // dirichlet precision par
@@ -139,8 +145,8 @@ model {
     // orthogonal decomposition
     mu_g[k] = mu_g[k];
 
-    print("Here");
-    print("k=", k);
+   //  print("Here");
+   // print("k=", k);
 
     // temporal innovations
     alpha_t[(k-1)*(T-1) + 1] ~ multi_normal_cholesky(zeros, cholesky_decompose(1/sigma2[k] * Q_s_inv[k]));
@@ -202,7 +208,8 @@ model {
       for (t in 1:T){
         idx_core = (idx_cores[i]-1)*T + t;
 
-        r_new[(i-1)*T + t] = gamma * r[idx_core];
+        r_new[(i-1)*T + t] = gamma * r[idx_core]; // old has gamma = scalar
+        // r_new[(i-1)*T + t] = gamma[K] * r[idx_core];
 
         out_sum = rep_vector(0.0, K);
         sum_w = 0;
@@ -214,7 +221,8 @@ model {
         sum_w = sum(out_sum);
 
         if (sum_w > 0)
-          r_new[(i-1)*T + t] += (1-gamma) * out_sum / sum_w;
+          r_new[(i-1)*T + t] += (1-gamma) * out_sum / sum_w; // old has gamma = scalar
+         // r_new[(i-1)*T + t] += (1-gamma[K]) * out_sum / sum_w;
       }
     }
 
