@@ -1,9 +1,11 @@
+// MAJOR MEMORY ISSUE //
+
 // Imported from STEPPS - PREDICTION (2/6/2026)
-
-// Spatio-temporal vegetation model; veg maps predicted from pollen counts
-// Latent vegetation modeled using a predictive process
-// Linked to multinomial pollen counts through an additive log-ratio sum to one constraint
-
+//
+// // Spatio-temporal vegetation model; veg maps predicted from pollen counts
+// // Latent vegetation modeled using a predictive process
+// // Linked to multinomial pollen counts through an additive log-ratio sum to one constraint
+//
 // weighting to take gamma = mean(gamma[k]) and w[i, j] instead of accounting for taxa
 
 data {
@@ -12,15 +14,15 @@ data {
   int<lower=0> N;       // number of cells
   int<lower=0> T;       // number of times
   int<lower=0> N_knots; // number of knots
-  int<lower=0> N_cores; // number of cores 
+  int<lower=0> N_cores; // number of cores
 
   array[N_cores * T, K] int y;
 
   vector<lower=0>[K-1] rho;     // spatial covariance par (idk who it is k-1, it is taxa specific)
   vector<lower=0>[K-1] eta;     // space-time variance par
-  
-  
-   real<lower=0, upper=1> gamma; // local/long-distance dispersal par 
+
+
+   real<lower=0, upper=1> gamma; // local/long-distance dispersal par
  // vector<lower=0, upper=1>[K] gamma; // change to become taxa specific
 
  // real<lower=0> psi;            // pollen dispersal par - not actually used
@@ -42,9 +44,9 @@ data {
 }
 
 transformed data {
-  int W; 
+  int W;
   vector[K-1] eta2;
-  vector[N_knots] zeros; 
+  vector[N_knots] zeros;
 
   matrix[N_knots,N_knots] Eye_knots;
 
@@ -73,14 +75,14 @@ transformed data {
   for (k in 1:W){
     C_s[k]   = exp(-d_knots/rho[k]);
     C_s_L[k] = cholesky_decompose(C_s[k]);
-    C_s_inv[k]  = mdivide_right_tri_low(mdivide_left_tri_low(C_s_L[k], Eye_knots)', C_s_L[k])'; 
+    C_s_inv[k]  = mdivide_right_tri_low(mdivide_left_tri_low(C_s_L[k], Eye_knots)', C_s_L[k])';
     c_s[k]      = exp(-d_inter/rho[k]);
-  } 
+  }
 }
 
 parameters {
 
-  real<lower=0, upper=20> ksi;   
+  real<lower=0, upper=20> ksi;
 
   vector<lower=0,upper=100>[W] sigma;
   vector<lower=0, upper=2>[W] lambda;
@@ -95,33 +97,33 @@ parameters {
 
 model {
   // declarations
-  array[W] vector[N*T] mu_g;       
-  vector[N*T] sum_exp_g;   
-  array[N*T] vector[K] r;          
+  array[W] vector[N*T] mu_g;
+  vector[N*T] sum_exp_g;
+  array[N*T] vector[K] r;
 
-  array[W] matrix[N, N_knots] q_s;         
-  array[W] matrix[N_knots, N_knots] Q_s;   
-  array[W] matrix[N_knots, N_knots] Q_s_L; 
-  array[W] matrix[N_knots, N_knots] Q_s_inv; 
+  array[W] matrix[N, N_knots] q_s;
+  array[W] matrix[N_knots, N_knots] Q_s;
+  array[W] matrix[N_knots, N_knots] Q_s_L;
+  array[W] matrix[N_knots, N_knots] Q_s_inv;
 
   vector[W] sigma2;
 
-  real cvar; 
+  real cvar;
   real qvar;
 
-  vector[N] Halpha_s;  
-  vector[N] Halpha_t;  
-  array[T-1] vector[N] qQinv_alpha;  
+  vector[N] Halpha_s;
+  vector[N] Halpha_t;
+  array[T-1] vector[N] qQinv_alpha;
 
-  row_vector[N_knots] c_i; 
-  row_vector[N_knots] q_i; 
+  row_vector[N_knots] c_i;
+  row_vector[N_knots] q_i;
   vector[N*T] sqrtvar;
 
-  // priors  
+  // priors
   mu ~ normal(0,20);
-  
+
   for (k in 1:W)
-    mu_t[k][1] ~ normal(0.0, 20.0); 
+    mu_t[k][1] ~ normal(0.0, 20.0);
 
   for (k in 1:W)
     sigma2[k] = sigma[k] * sigma[k];
@@ -134,7 +136,7 @@ model {
     Q_s_inv[k] = mdivide_right_tri_low(mdivide_left_tri_low(Q_s_L[k], Eye_knots)', Q_s_L[k])';
   }
 
-  for (k in 1:W){ 
+  for (k in 1:W){
     // spatially-varying mean
     alpha_s[k] ~ multi_normal_cholesky(zeros, eta2[k] * C_s_L[k]);
 
@@ -241,3 +243,105 @@ model {
     }
   }
 }
+
+
+
+
+// =========================
+// MEMORY ALLOCATION AUDIT
+// =========================
+// 
+// // ---------- data block ----------
+// data {
+//   int<lower=0> K;                 // small
+//   int<lower=0> N;                 // large driver
+//   int<lower=0> T;                 // moderate
+//   int<lower=0> N_knots;           // moderate
+//   int<lower=0> N_cores;           // moderate
+// 
+//   array[N_cores * T, K] int y;    // O(N_cores * T * K)
+// 
+//   vector[K-1] rho;                // small
+//   vector[K-1] eta;                // small
+//   real gamma;                     // scalar
+//   vector[K] phi;                  // small
+// 
+//   array[N_cores] int idx_cores;   // small
+// 
+//   matrix[N,N] d;                  //  O(N^2) VERY LARGE
+//   matrix[N_knots,N_knots] d_knots;// O(N_knots^2)
+//   matrix[N,N_knots] d_inter;      // O(N * N_knots)
+// 
+//   matrix[N_cores,N] w;            // O(N_cores * N)
+// 
+//   matrix[T,T] lag;                // small (unused)
+//   int N_p;                        // scalar
+//   real P;                         // scalar
+// }
+// 
+// 
+// // ---------- transformed data ----------
+// transformed data {
+//   int W;                          // scalar
+//   vector[K-1] eta2;               // small
+//   vector[N_knots] zeros;          // O(N_knots)
+// 
+//   matrix[N_knots,N_knots] Eye_knots;  // O(N_knots^2)
+// 
+//   // Per-taxon spatial objects
+//   array[K-1] matrix[N_knots,N_knots] C_s;      // O(W * N_knots^2)
+//   array[K-1] matrix[N_knots,N_knots] C_s_L;    // O(W * N_knots^2)
+//   array[K-1] matrix[N_knots,N_knots] C_s_inv;  //  O(W * N_knots^2) + autodiff
+//   array[K-1] matrix[N,N_knots] c_s;             //  O(W * N * N_knots)
+// 
+//   matrix[N*T, N*T] M;             // O((N*T)^2) — EVEN IF UNUSED
+// }
+// 
+// 
+// // ---------- parameters ----------
+// parameters {
+//   real ksi;                       // scalar
+// 
+//   vector[W] sigma;                // small
+//   vector[W] lambda;               // small
+//   vector[W] mu;                   // small
+// 
+//   array[W] vector[T] mu_t;        // O(W * T)
+//   array[W] vector[N_knots] alpha_s; // O(W * N_knots)
+//   array[W*(T-1)] vector[N_knots] alpha_t; // O(W * T * N_knots)
+// 
+//   array[W] vector[N*T] g;         //  O(W * N * T) HUGE + autodiff
+// }
+// 
+// 
+// // ---------- model (local allocations) ----------
+// model {
+//   // Latent mean storage
+//   array[W] vector[N*T] mu_g;      //  O(W * N * T)
+//   vector[N*T] sum_exp_g;          // O(N * T)
+// 
+//   // Probability simplex for *all cells*
+//   array[N*T] vector[K] r;         //  O(N * T * K)
+// 
+//   // Predictive-process covariance
+//   array[W] matrix[N, N_knots] q_s;       //  O(W * N * N_knots)
+//   array[W] matrix[N_knots,N_knots] Q_s;  // O(W * N_knots^2)
+//   array[W] matrix[N_knots,N_knots] Q_s_L;// O(W * N_knots^2)
+//   array[W] matrix[N_knots,N_knots] Q_s_inv;//  heavy autodiff
+// 
+//   vector[W] sigma2;               // small
+// 
+//   // Temporary per-cell buffers
+//   vector[N] Halpha_s;             // O(N)
+//   vector[N] Halpha_t;             // O(N)
+//   array[T-1] vector[N] qQinv_alpha; //  O(N * T)
+// 
+//   row_vector[N_knots] c_i;        // O(N_knots)
+//   row_vector[N_knots] q_i;        // O(N_knots)
+// 
+//   vector[N*T] sqrtvar;            // O(N * T)
+// 
+//   // Likelihood-only storage (reasonable)
+//   array[N_cores*T] vector[K] r_new; // O(N_cores * T * K)
+// }
+// 

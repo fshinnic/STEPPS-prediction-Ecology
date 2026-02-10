@@ -136,18 +136,41 @@ fit <- mod$sample(
 )
 
  # ###### CURRENT ERROR MESSAGES #####
+
+# Running MCMC with 1 chain...
 # 
-# Chain 1 Exception: mismatch in dimension declared and found in context; processing stage=data initialization; variable name=rho; position=0; dims declared=(11); dims found=(12) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpW55xiI/model-184a3342a02ec.stan', line 19, column 2 to column 27)
-# Chain 2 Exception: mismatch in dimension declared and found in context; processing stage=data initialization; variable name=rho; position=0; dims declared=(11); dims found=(12) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpW55xiI/model-184a3342a02ec.stan', line 19, column 2 to column 27)
-# Chain 3 Exception: mismatch in dimension declared and found in context; processing stage=data initialization; variable name=rho; position=0; dims declared=(11); dims found=(12) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpW55xiI/model-184a3342a02ec.stan', line 19, column 2 to column 27)
-# Warning: Chain 1 finished unexpectedly!
-#   
-#   Warning: Chain 2 finished unexpectedly!
-#   
-#   Warning: Chain 3 finished unexpectedly!
-#   
-#   Warning: Use read_cmdstan_csv() to read the results of the failed chains.
-# Warning messages:
-#   1: All chains finished unexpectedly! Use the $output(chain_id) method for more information.
-# 
-# 2: No chains finished successfully. Unable to retrieve the fit. 
+# Chain 1 WARNING: There aren't enough warmup iterations to fit the 
+# Chain 1          three stages of adaptation as currently configured. 
+# Chain 1          Reducing each adaptation stage to 15%/75%/10% of 
+# Chain 1          the given number of warmup iterations: 
+# Chain 1            init_buffer = 15 
+# Chain 1            adapt_window = 75 
+# Chain 1            term_buffer = 10 
+# Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:
+# Chain 1 Exception: cholesky_decompose: Matrix m is not positive definite (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpYTsoP1/model-50276f6c09c.stan', line 135, column 4 to column 42)
+# Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,
+# Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.
+# Chain 1 
+# Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:
+# Chain 1 Exception: cholesky_decompose: Matrix m is not positive definite (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpYTsoP1/model-50276f6c09c.stan', line 135, column 4 to column 42)
+# Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,
+# Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.
+# Chain 1 
+# Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:
+# Chain 1 Exception: cholesky_decompose: Matrix m is not positive definite (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpYTsoP1/model-50276f6c09c.stan', line 135, column 4 to column 42)
+# Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,
+# Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.
+# Chain 1 
+# Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:
+# Chain 1 Exception: cholesky_decompose: Matrix m is not positive definite (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpYTsoP1/model-50276f6c09c.stan', line 135, column 4 to column 42)
+# Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,
+# Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.
+# Chain 1 
+# Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:
+# Chain 1 Exception: cholesky_decompose: Matrix m is not positive definite (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpYTsoP1/model-50276f6c09c.stan', line 135, column 4 to column 42)
+# Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,
+# Chain 1 but if this warning occurs often then your model may be either severely ill-conditioned or misspecified.
+# Chain 1 
+# Chain 1 Informational Message: The current Metropolis proposal is about to be rejected because of the following issue:
+# Chain 1 Exception: cholesky_decompose: Matrix m is not positive definite (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpYTsoP1/model-50276f6c09c.stan', line 135, column 4 to column 42)
+# Chain 1 If this warning occurs sporadically, such as for highly constrained variable types like covariance matrices, then the sampler is fine,

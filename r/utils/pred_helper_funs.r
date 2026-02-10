@@ -2382,12 +2382,29 @@ convert_counts <- function(counts, tree_type, taxa_sub){
   if (sum(left %in% taxa_other_hw) > 1){
     y_veg$OTHER.HARDWOOD = rowSums(counts[,left[left %in% taxa_other_hw]])
   } else {
-    y_veg$OTHER.HARDWOOD = counts[,left[left %in% taxa_other_hw]]
+    # y_veg$OTHER.HARDWOOD = counts[,left[left %in% taxa_other_hw]] # results in dropped col
+    
+    cols <- left[left %in% taxa_other_con]
+    
+    y_veg$OTHER.HARDWOOD <- rowSums(
+      counts[, cols, drop = FALSE],
+      na.rm = TRUE
+    )
+    
   }
+  
   if (sum(left %in% taxa_other_con) > 1){
     y_veg$OTHER.CONIFER  = rowSums(counts[,left[left %in% taxa_other_con]])
   } else {
-    y_veg$OTHER.CONIFER  = counts[,left[left %in% taxa_other_con]]
+    # y_veg$OTHER.CONIFER  = counts[,left[left %in% taxa_other_con]]
+    
+    cols <- left[left %in% taxa_other_con]
+    
+    y_veg$OTHER.CONIFER <- rowSums(
+      counts[, cols, drop = FALSE],
+      na.rm = TRUE
+    )
+    
   }
   
   y_veg = round(as.matrix(y_veg[,sort(colnames(y_veg))]))

@@ -88,10 +88,10 @@ path_grid = 'data/grid/umw_3by_v2.rdata'
 path_pls      = 'data/pls_umw_v0.6.csv'
 
 # All pollen data sets
-path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
+# path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
 
 # Only non-varve lakes of interest
-# path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
+path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
 
 # only no-varve Minnesota lakes
 #path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
@@ -276,11 +276,27 @@ N_pls = nrow(y_veg)
 
 # FS - created domain of uppermidwest form PLS grid centers
 states_pls <- c("wisconsin", "michigan:north","minnesota")
-domain <- meta[meta$state2 %in% states_pls, c("x", "y")]
+pollen_locs_wisc <- matrix(c(
+  295730.5, 1080402,
+  305160.3, 1063040,
+  302421.0, 1076170,
+  315188.8, 1087291
+), ncol=2, byrow=TRUE)
+pollen_df <- as.data.frame(pollen_locs_wisc)
+colnames(pollen_df) <- c("x", "y")
 
-# FIXME: ADD STATE TO GRID
-# coarse_domain  = coarse_domain[coarse_domain$state %in% states_pls,]
-coarse_centers = domain[,1:2]
+# Subset meta to relevant states
+meta_sub <- meta %>% dplyr::filter(state2 %in% states_pls)
+
+# Calculate distance from each meta point to all pollen sites
+dist_matrix <- as.matrix(dist(rbind(meta_sub[,c("x","y")], pollen_df)))
+dist_matrix <- dist_matrix[1:nrow(meta_sub), (nrow(meta_sub)+1):nrow(dist_matrix)]
+
+# Keep points within 10 km of any pollen site
+domain <- meta_sub[rowSums(dist_matrix <= 30000) > 0, c("x","y")]
+
+# coarse centers
+coarse_centers <- domain[,1:2]
 
 # check domain working with
 plot(coarse_centers[,1] * rescale,
@@ -324,6 +340,7 @@ pollen_ts1 = pollen_ts[which(pollen_ts$state %in% states_pol),]
 pollen_ts2 = pollen_to_albers(pollen_ts1)
 # FS - location of pollen
 pollen_locs = cbind(pollen_ts2$x, pollen_ts2$y)
+unique(pollen_locs)
 
 # FS - checks that the pollen sitees are within the vegetation domain
 plot(centers_veg$x, centers_veg$y, col='green', pch=19, main='Vegetation vs Pollen')
@@ -362,6 +379,10 @@ pollen_agg = build_pollen_counts(tmin=tmin, tmax=tmax, int=int, pollen_ts=(polle
 meta_pol_all = pollen_agg[[3]]
 meta_pol   = pollen_agg[[2]]
 counts     = pollen_agg[[1]]
+
+# since tamarack isn't everywhere
+counts[is.na(counts)] <- 0
+
 
 meta_pol$stat_id = pol_ids$stat_id[match(meta_pol$id, pol_ids$id)]
 meta_pol_all$stat_id = pol_ids$stat_id[match(meta_pol_all$id, pol_ids$id)]
