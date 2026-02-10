@@ -64,9 +64,10 @@ transformed data {
     for (j in 1:N_knots)
       Eye_knots[i,j] = (i==j ? 1.0 : 0.0);
 
-  for (j in 1:N*T)
-    for (i in 1:N*T)
-      M[i,j] = (i==j ? 1.0-P : -P);
+  // FS - removed since never used and too large
+  // for (j in 1:N*T)
+  //   for (i in 1:N*T)
+  //     M[i,j] = (i==j ? 1.0-P : -P);
 
   // construct spatial covariance matrix
   for (k in 1:W){

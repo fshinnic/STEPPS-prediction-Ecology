@@ -92,6 +92,8 @@ check_bad(w, "w")
 check_bad(P, "P")
 check_bad(gamma, "gamma")
 
+gamma = mean(gamma)
+
 # issue seems to be that the original stsan model expected gamma = scalar
 # changed gamma to be vector, calling gamme[K] since taxa-specific
 
@@ -99,7 +101,10 @@ check_bad(gamma, "gamma")
 # variable name = w
 # dims declared = (199, 6378)
 
-# choice, keep w = (12, 199, 6378)
+# choice, remove 12 w = (12, 199, 6378)
+
+w <- w[1, , ]
+
 
 # Run the model
 fit <- mod$sample(
@@ -124,20 +129,25 @@ fit <- mod$sample(
     lag = lag, # not used
     N_p = N_p # not used
   ),
-  chains = 4,
-  parallel_chains = 4,
-  iter_warmup = 1000,
-  iter_sampling = 1000
+  chains = 1,
+  parallel_chains = 1,
+  iter_warmup = 100,
+  iter_sampling = 10
 )
 
-# ###### CURRENT ERROR MESSAGES #####
-
-# Chain 1 Exception: mismatch in number dimensions declared and found in context; processing stage=data initialization; variable name=w; dims declared=(199,6378); dims found=(12,199,6378) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpW55xiI/model-184a37a6c9966.stan', line 34, column 2 to column 22)
+ # ###### CURRENT ERROR MESSAGES #####
+# 
+# Chain 1 Exception: mismatch in dimension declared and found in context; processing stage=data initialization; variable name=rho; position=0; dims declared=(11); dims found=(12) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpW55xiI/model-184a3342a02ec.stan', line 19, column 2 to column 27)
+# Chain 2 Exception: mismatch in dimension declared and found in context; processing stage=data initialization; variable name=rho; position=0; dims declared=(11); dims found=(12) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpW55xiI/model-184a3342a02ec.stan', line 19, column 2 to column 27)
+# Chain 3 Exception: mismatch in dimension declared and found in context; processing stage=data initialization; variable name=rho; position=0; dims declared=(11); dims found=(12) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpW55xiI/model-184a3342a02ec.stan', line 19, column 2 to column 27)
 # Warning: Chain 1 finished unexpectedly!
 #   
-#   Chain 3 Exception: mismatch in number dimensions declared and found in context; processing stage=data initialization; variable name=w; dims declared=(199,6378); dims found=(12,199,6378) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpW55xiI/model-184a37a6c9966.stan', line 34, column 2 to column 22)
-# Warning: Chain 3 finished unexpectedly!
+#   Warning: Chain 2 finished unexpectedly!
 #   
-#   Chain 2 Exception: mismatch in number dimensions declared and found in context; processing stage=data initialization; variable name=w; dims declared=(199,6378); dims found=(12,199,6378) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpW55xiI/model-184a37a6c9966.stan', line 34, column 2 to column 22)
-# Chain 4 Exception: mismatch in number dimensions declared and found in context; processing stage=data initialization; variable name=w; dims declared=(199,6378); dims found=(12,199,6378) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpW55xiI/model-184a37a6c9966.stan', line 34, column 2 to column 22)
-# Warning: Chain 2 finished unexpectedly!
+#   Warning: Chain 3 finished unexpectedly!
+#   
+#   Warning: Use read_cmdstan_csv() to read the results of the failed chains.
+# Warning messages:
+#   1: All chains finished unexpectedly! Use the $output(chain_id) method for more information.
+# 
+# 2: No chains finished successfully. Unable to retrieve the fit. 
