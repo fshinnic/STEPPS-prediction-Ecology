@@ -1,20 +1,35 @@
+################################################################################
+## This is the starting place for this code repo. It establishes all run parameters
+## for one iteration of the STEPPS prediction code and calls the pred_build_data
+## code. 
+##
+## Other Scripts called: Pred_build_data.R
+##
+## Packages required: None for this script directly.  
+##
+## Inputs: None. It is just setting run parameters.
+##
+## Outputs: None specific to this script. All outputs created in 
+################################################################################
+
 # FS- working directory
 setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology")
 
+#res : relative resolution of grid; should be 1 for 8 km, 3 for 24 km, and 5 for 40 km grids
 res  = 3
 
 version="v2.4"
-AR     = TRUE
-draw   = FALSE
-ndraws = 10
-nknots = 120
-one_time=FALSE
-lambda_fixed = TRUE
-bchron = FALSE
+AR     = TRUE #Not sure what this is. In runs some of the 12knots_... files end with AR so maybe autoregressive?
+draw   = FALSE #Whether or not to do multiple draws. Code only works if it is TRUE. (pred_build_data 465)
+ndraws = 10 #Number of times to run pred_build_data. 
+nknots = 120 #Number of knots used in prediction. I do not know if it will work for ones that aren't 120
+one_time=FALSE #Seems related to the temporal autocorrelation
+lambda_fixed = TRUE # Is never used
+bchron = FALSE #Whether to use bchron or bacon ages 
 
 # stat model flags
-decomp     = TRUE
-bt         = TRUE
+decomp     = TRUE #Not used
+bt         = TRUE #Also never used
 mpp        = TRUE
 save_plots = TRUE
 
