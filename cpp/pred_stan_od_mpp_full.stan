@@ -9,34 +9,42 @@
 // weighting to take gamma = mean(gamma[k]) and w[i, j] instead of accounting for taxa
 
 data {
-
+  
+  // Data initiation
+  // Only momdels k-1 taxa explicetly
   int<lower=0> K;       // number of species
   int<lower=0> N;       // number of cells
   int<lower=0> T;       // number of times
   int<lower=0> N_knots; // number of knots
   int<lower=0> N_cores; // number of cores
 
-  array[N_cores * T, K] int y;
+  array[N_cores * T, K] int y; // observed pollen counts per core-time
 
+  // Taxon specific parameters
+  // Choses other as a reference
   vector<lower=0>[K-1] rho;     // spatial covariance par (idk who it is k-1, it is taxa specific)
   vector<lower=0>[K-1] eta;     // space-time variance par
 
-
-   real<lower=0, upper=1> gamma; // local/long-distance dispersal par
+  // spatial mixing parameter (between local and regional pollen contribution)
+  real<lower=0, upper=1> gamma; // local/long-distance dispersal par
  // vector<lower=0, upper=1>[K] gamma; // change to become taxa specific
 
- // real<lower=0> psi;            // pollen dispersal par - not actually used
-
-  vector<lower=0>[K] phi;       // dirichlet precision par
+  // real<lower=0> psi;            // pollen dispersal par - not actually used
+  
+  // Dirichelt precision parameter
+  vector<lower=0>[K] phi;       // controls over dispersion
 
   array[N_cores] int idx_cores; // core cell indices
 
+  // Exponential distance matricies
   matrix[N,N] d;                   // cell distance matrix
   matrix[N_knots,N_knots] d_knots; // knot distance matrix
   matrix[N,N_knots] d_inter;       // cells-knots distance matrix
 
+  // pollen weighting matrix to see how much each cell contributes to other cell
   matrix[N_cores,N] w;             // weight matrix
 
+  // NEVER USED
   matrix[T,T] lag;                 // time lag matrix
 
   int<lower=0> N_p;                // size of P in data file; will be 1 or N
@@ -50,13 +58,13 @@ transformed data {
 
   matrix[N_knots,N_knots] Eye_knots;
 
-  // modern array syntax
+  // Spatial covariance objects per taxon
   array[K-1] matrix[N_knots,N_knots] C_s;      // spatial covariance mat
   array[K-1] matrix[N_knots,N_knots] C_s_L;    // chol decomposition of C_s
   array[K-1] matrix[N_knots,N_knots] C_s_inv;  // inverse spatial covariance mat
   array[K-1] matrix[N,N_knots] c_s;            // spatial covariance mat
 
-  matrix[N*T, N*T] M;
+ //  matrix[N*T, N*T] M; // not used
 
   W = K-1;
   for (k in 1:W) eta2[k] = eta[k] * eta[k];
@@ -73,34 +81,37 @@ transformed data {
 
   // construct spatial covariance matrix
   for (k in 1:W){
-    C_s[k]   = exp(-d_knots/rho[k]);
-    C_s_L[k] = cholesky_decompose(C_s[k]);
+    C_s[k]   = exp(-d_knots/rho[k]); // covariance at knots
+    C_s_L[k] = cholesky_decompose(C_s[k]);  // positive definite matrix into
+    // the product of a lower triangular matrix and its transpose
     C_s_inv[k]  = mdivide_right_tri_low(mdivide_left_tri_low(C_s_L[k], Eye_knots)', C_s_L[k])';
-    c_s[k]      = exp(-d_inter/rho[k]);
+    c_s[k]      = exp(-d_inter/rho[k]); // celll to knot covariance
   }
 }
 
 parameters {
 
+  // random walk smoothness parameter (0-20)
   real<lower=0, upper=20> ksi;
 
-  vector<lower=0,upper=100>[W] sigma;
-  vector<lower=0, upper=2>[W] lambda;
+  vector<lower=0,upper=100>[W] sigma; // temporal varience
+  vector<lower=0, upper=2>[W] lambda; // spactial range for temporal varience
 
   vector[W] mu;                        // scalar vector
   array[W] vector[T] mu_t;             // time-varying mean
   array[W] vector[N_knots] alpha_s;    // spatially-varying mean
   array[W*(T-1)] vector[N_knots] alpha_t; // temporal innovations
-  array[W] vector[N*T] g;              // latent process
+  array[W] vector[N*T] g;              // latent process (largest memory issue)
 
 }
 
 model {
-  // declarations
+  // declarations (storages)
   array[W] vector[N*T] mu_g;
   vector[N*T] sum_exp_g;
-  array[N*T] vector[K] r;
+  array[N*T] vector[K] r; // Vegetation proportions
 
+  // Covariance objects
   array[W] matrix[N, N_knots] q_s;
   array[W] matrix[N_knots, N_knots] Q_s;
   array[W] matrix[N_knots, N_knots] Q_s_L;
@@ -136,11 +147,15 @@ model {
     Q_s_inv[k] = mdivide_right_tri_low(mdivide_left_tri_low(Q_s_L[k], Eye_knots)', Q_s_L[k])';
   }
 
+  // LATENT GP (gaussian process)
+  
   for (k in 1:W){
     // spatially-varying mean
     alpha_s[k] ~ multi_normal_cholesky(zeros, eta2[k] * C_s_L[k]);
-
+    
+    // Predictive process projection to cells
     Halpha_s = c_s[k] * (C_s_inv[k] * alpha_s[k]);
+    
     for (i in 1:N)
       for (t in 1:T)
         mu_g[k][(i-1)*T + t] = Halpha_s[i];
@@ -151,7 +166,7 @@ model {
    //  print("Here");
    // print("k=", k);
 
-    // temporal innovations
+    // temporal innovations - (random walk)
     alpha_t[(k-1)*(T-1) + 1] ~ multi_normal_cholesky(zeros, cholesky_decompose(1/sigma2[k] * Q_s_inv[k]));
     for (t in 2:(T-1))
       alpha_t[(k-1)*(T-1) + t] ~ multi_normal_cholesky(alpha_t[(k-1)*(T-1)+t-1], cholesky_decompose(1/sigma2[k] * Q_s_inv[k]));
@@ -159,26 +174,29 @@ model {
     for (t in 1:(T-1))
       qQinv_alpha[t] = q_s[k] * Q_s_inv[k] * alpha_t[(k-1)*(T-1)+t];
 
-    // time-varying mean
+    // time-varying mean (random walk)
     for (i in 2:T)
       mu_t[k][i] ~ normal(mu_t[k][i-1], ksi);
 
+    // builds full spatio-temporal mean and variance
     for (i in 1:N){
       c_i = row(c_s[k], i);
       cvar = eta2[k] * c_i * C_s_inv[k] * c_i';
 
       q_i = row(q_s[k], i);
       qvar = sigma2[k] * q_i * Q_s_inv[k] * q_i';
-
+      
+      // t = 1
       mu_g[k][(i-1)*T + 1] = mu[k] + mu_t[k][1] + mu_g[k][(i-1)*T + 1];
       sqrtvar[(i-1)*T + 1] = sqrt(eta2[k] - cvar);
-
+      // t > 1
       for (t in 2:T){
         mu_g[k][(i-1)*T + t] = mu[k] + mu_t[k][t] + mu_g[k][(i-1)*T + t] + qQinv_alpha[t-1][i];
         sqrtvar[(i-1)*T + t] = sqrt(eta2[k] - cvar + sigma2[k] - qvar);
       }
     }
-
+    
+    // Sample latent Gaussian field
     for (i in 1:N*T)
       g[k][i] ~ normal(mu_g[k][i], sqrtvar[i]);
   }
@@ -197,7 +215,7 @@ model {
   for (i in 1:N*T)
     r[i,K] = 1 / (1 + sum_exp_g[i]);
 
-  // link to pollen
+  // link to pollen (pollen dispersal + likelihood)
   {
     array[N_cores*T] vector[K] r_new;
     vector[K] out_sum;
@@ -211,9 +229,11 @@ model {
       for (t in 1:T){
         idx_core = (idx_cores[i]-1)*T + t;
 
+        // local vegetation contribution
         r_new[(i-1)*T + t] = gamma * r[idx_core]; // old has gamma = scalar
         // r_new[(i-1)*T + t] = gamma[K] * r[idx_core];
-
+        
+        // long-distance pollen contribution
         out_sum = rep_vector(0.0, K);
         sum_w = 0;
 
@@ -228,7 +248,8 @@ model {
          // r_new[(i-1)*T + t] += (1-gamma[K]) * out_sum / sum_w;
       }
     }
-
+    
+    // Dirichlet–Multinomial likelihood
     for (i in 1:N_cores*T){
       if (sum(y[i]) > 0){
         kappa = phi .* r_new[i];

@@ -105,7 +105,6 @@ gamma = mean(gamma)
 
 w <- w[1, , ]
 
-
 # Run the model
 fit <- mod$sample(
   data = list(
@@ -131,10 +130,11 @@ fit <- mod$sample(
   ),
   chains = 1,
   parallel_chains = 1,
-  iter_warmup = 100,
+  iter_warmup = 1000,
   iter_sampling = 10
 )
 
+# Turn off draws
  # ###### CURRENT ERROR MESSAGES #####
 
 # Running MCMC with 1 chain...
