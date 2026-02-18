@@ -23,7 +23,7 @@ AR     = TRUE #Not sure what this is. In runs some of the 12knots_... files end 
 draw   = FALSE #Whether or not to do multiple draws. Code only works if it is TRUE. (pred_build_data 465)
 ndraws = 10 #Number of times to run pred_build_data. 
 nknots = 120 #Number of knots used in prediction. I do not know if it will work for ones that aren't 120
-one_time=FALSE #Seems related to the temporal autocorrelation
+one_time=FALSE #Whether or not to only predict with one timepoint. (Will break at pred_build_data.r ln 68 if T)
 lambda_fixed = TRUE # Is never used
 bchron = FALSE #Whether to use bchron or bacon ages 
 

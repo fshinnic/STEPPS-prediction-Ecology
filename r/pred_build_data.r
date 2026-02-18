@@ -1,3 +1,17 @@
+################################################################################
+## This file will do the pre-processing, of input data and running of the STEPPS
+## model (probably)
+##
+## Other Scripts called: pred_helper_functions loaded in as functions. 
+##
+## Packages required: fields, rstan, sp, ggplot2, mvtnorm, maps, plyr, and sf  
+##
+## Inputs: data/assign_HW_CON.csv
+##          
+##
+## Outputs: 
+##
+################################################################################
 library(fields)
 library(rstan)
 library(sp)
@@ -9,10 +23,10 @@ library(maps)
 library(plyr)
 library(sf)
 
-
+#Load in all the functions created in pred_helper_funs for use here. 
 source(file.path(getwd(), "r/utils/pred_helper_funs.r"))
 
-getwd()
+#getwd() #HO - Unnecessary, can we delete this?
 
 # #####
 # // STEPPS pollen-vegetation prediction model with no temporal component
@@ -42,22 +56,24 @@ getwd()
 # user defs
 ######################################################################################################################################
 
+#Read in map data about the US
 # us albers shape file
 #us.shp <- readOGR('data/map/us_alb.shp', 'us_alb')
 us.shp <- sf::st_read('data/map/us/us_alb.shp', 'us_alb')
 
 # reconstruction limits and bin-width
-int  = 100
-tmin = 150
+int  = 100 #Year interval for STEPPS model
+tmin = 150 #Presumably 150 years before present which matches DawsonEA2019
+#Determine how far back we are modeling. 
 if (one_time) {
-  tmin = tmin + (slice-1)*int
+  tmin = tmin + (slice-1)*int #Slice has not been defined. This will not work. 
   tmax = tmin + int
 } else {
   tmax = tmin + 20*int
 }
 
 # rescale
-rescale = 1e6
+rescale = 1e6 #Conversion factor used for rescaling the spatial grids. 
 
 # suffix to append to figure names
 #HO - I have no idea where grid_specs comes from so I will add my own to get it to run.
@@ -76,12 +92,12 @@ taxa_sub = toupper(c('oak', 'pine', 'maple', 'birch', 'tamarack', 'beech', 'elm'
 
 # K is number of taxa
 K = as.integer(length(taxa_sub) + 1)
-W = K-1
+W = K-1 
 
 ##########################################################################################################################
 ## paths and filenames to write to meta file
 ##########################################################################################################################
-suff_veg = paste0('12taxa_6341cells_', nknots, 'knots')
+suff_veg = paste0('12taxa_6341cells_', nknots, 'knots') #Used to find the correct vegetation data. 
 
 path_grid = 'data/grid/umw_3by_v2.rdata'
 
@@ -96,6 +112,7 @@ path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
 # only no-varve Minnesota lakes
 #path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
 
+#determine what age method is being used and save the path to it. 
 if (bchron){
   path_age_samples    = 'data/bchron_ages'
 } else {
