@@ -460,10 +460,13 @@ for (i in 1:N_cores){
 # centers_pol <- meta_pol[!duplicated(cbind(meta_pol$x, meta_pol$y)), c('x', 'y')]
 
 # indices for which cells the cores fall in
+# changes the index to the center of the cell
 idx_cores <- build_idx_cores(centers_pol, centers_veg, N_cores)
 
 plot(centers_veg$x*rescale, centers_veg$y*rescale, col='lightgrey')
 points(centers_veg[idx_cores,'x']*rescale, centers_veg[idx_cores,'y']*rescale, col='red', pch=19)
+
+# shows where the orignal lake falls relative to the STEP cell it is put in
 points(centers_pol$x*rescale, centers_pol$y*rescale, col='blue', pch=4, cex=1.4)
 #plot(us.shp, add=TRUE)
 
