@@ -22,7 +22,7 @@ data {
 
   // Taxon specific parameters
   // Choses other as a reference
-  vector<lower=0>[K-1] rho;     // spatial covariance par (idk who it is k-1, it is taxa specific)
+  vector<lower=0>[K-1] rho;     // spatial covariance par (idk who it is k-1, it is taxa specific) HO-cpp starts counting vector length at 0 rather than 1
   vector<lower=0>[K-1] eta;     // space-time variance par
 
   // spatial mixing parameter (between local and regional pollen contribution)
@@ -53,10 +53,10 @@ data {
 
 transformed data {
   int W;
-  vector[K-1] eta2;
-  vector[N_knots] zeros;
+  vector[K-1] eta2; #Will be the space-time var parameter squared
+  vector[N_knots] zeros; #Will be a vector of zeros
 
-  matrix[N_knots,N_knots] Eye_knots;
+  matrix[N_knots,N_knots] Eye_knots;#Will be an identity matrix of dimensions N_knots X N_knots
 
   // Spatial covariance objects per taxon
   array[K-1] matrix[N_knots,N_knots] C_s;      // spatial covariance mat
@@ -70,6 +70,7 @@ transformed data {
   for (k in 1:W) eta2[k] = eta[k] * eta[k];
   for (i in 1:N_knots) zeros[i] = 0.0;
 
+  #makes Eye_knots an identity matrix. 
   for (i in 1:N_knots)
     for (j in 1:N_knots)
       Eye_knots[i,j] = (i==j ? 1.0 : 0.0);
@@ -85,7 +86,7 @@ transformed data {
     C_s_L[k] = cholesky_decompose(C_s[k]);  // positive definite matrix into
     // the product of a lower triangular matrix and its transpose
     C_s_inv[k]  = mdivide_right_tri_low(mdivide_left_tri_low(C_s_L[k], Eye_knots)', C_s_L[k])';
-    c_s[k]      = exp(-d_inter/rho[k]); // celll to knot covariance
+    c_s[k]      = exp(-d_inter/rho[k]); // cell to knot covariance
   }
 }
 
@@ -94,11 +95,11 @@ parameters {
   // random walk smoothness parameter (0-20)
   real<lower=0, upper=20> ksi;
 
-  vector<lower=0,upper=100>[W] sigma; // temporal varience
+  vector<lower=0,upper=100>[W] sigma; // temporal varience HO - I am pretty sure this is SD
   vector<lower=0, upper=2>[W] lambda; // spactial range for temporal varience
 
-  vector[W] mu;                        // scalar vector
-  array[W] vector[T] mu_t;             // time-varying mean
+  vector[W] mu;                        // scalar vector of species-varying overall adjustment term (mu_k in paper)
+  array[W] vector[T] mu_t;             // time-varying mean - mu_{t,k}^t in Dawson ea 2019
   array[W] vector[N_knots] alpha_s;    // spatially-varying mean
   array[W*(T-1)] vector[N_knots] alpha_t; // temporal innovations
   array[W] vector[N*T] g;              // latent process (largest memory issue)
@@ -117,26 +118,26 @@ model {
   array[W] matrix[N_knots, N_knots] Q_s_L;
   array[W] matrix[N_knots, N_knots] Q_s_inv;
 
-  vector[W] sigma2;
+  vector[W] sigma2; //Gaussian proccess variance. 
 
   real cvar;
   real qvar;
 
   vector[N] Halpha_s;
   vector[N] Halpha_t;
-  array[T-1] vector[N] qQinv_alpha;
+  array[T-1] vector[N] qQinv_alpha; // Probably nu_{., k}^2 (spatial process term) for knots
 
-  row_vector[N_knots] c_i;
+  row_vector[N_knots] c_i;//Variance for a given taxa and time
   row_vector[N_knots] q_i;
   vector[N*T] sqrtvar;
 
   // priors
-  mu ~ normal(0,20);
+  mu ~ normal(0,20);//Setting prior for species-specific overall adjustment term
 
   for (k in 1:W)
-    mu_t[k][1] ~ normal(0.0, 20.0);
+    mu_t[k][1] ~ normal(0.0, 20.0);//Set initial values for autoregressive mean ("time varying term")
 
-  for (k in 1:W)
+  for (k in 1:W)//Set initial values for guassian process variance?
     sigma2[k] = sigma[k] * sigma[k];
 
   // innovations covariance
@@ -173,7 +174,7 @@ model {
       alpha_t[(k-1)*(T-1) + t] ~ multi_normal_cholesky(alpha_t[(k-1)*(T-1)+t-1], cholesky_decompose(1/sigma2[k] * Q_s_inv[k]));
 
     for (t in 1:(T-1))
-      qQinv_alpha[t] = q_s[k] * Q_s_inv[k] * alpha_t[(k-1)*(T-1)+t];
+      qQinv_alpha[t] = q_s[k] * Q_s_inv[k] * alpha_t[(k-1)*(T-1)+t]; // Spatial process term for all time points. 
 
     // time-varying mean (random walk)
     for (i in 2:T)
@@ -181,10 +182,10 @@ model {
 
     // builds full spatio-temporal mean and variance
     for (i in 1:N){
-      c_i = row(c_s[k], i);
-      cvar = eta2[k] * c_i * C_s_inv[k] * c_i';
+      c_i = row(c_s[k], i);//variance between knots and cells for a given taxa and time
+      cvar = eta2[k] * c_i * C_s_inv[k] * c_i'; //Maybe the covariance for the mu terms in the gaussian process? Not sure. 
 
-      q_i = row(q_s[k], i);
+      q_i = row(q_s[k], i); //Variance of innovations for a given taxa and cell?
       qvar = sigma2[k] * q_i * Q_s_inv[k] * q_i';
       
       // t = 1
