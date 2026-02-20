@@ -91,10 +91,10 @@ path_pls      = 'data/pls_umw_v0.6.csv'
 # path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
 
 # Only non-varve lakes of interest
-path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
+# path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
 
 # only no-varve Minnesota lakes
-#path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
+path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
 
 if (bchron){
   path_age_samples    = 'data/bchron_ages'
@@ -276,13 +276,27 @@ N_pls = nrow(y_veg)
 
 # FS - created domain of uppermidwest form PLS grid centers
 states_pls <- c("wisconsin", "michigan:north","minnesota")
-pollen_locs_wisc <- matrix(c(
-  295730.5, 1080402,
-  305160.3, 1063040,
-  302421.0, 1076170,
-  315188.8, 1087291
+
+############### Only keep cores close to lakes ################# 
+
+############### Wisconsin Cores ###########################
+# pollen_locs_wisc <- matrix(c(
+#   295730.5, 1080402,
+#   305160.3, 1063040,
+#   302421.0, 1076170,
+#   315188.8, 1087291
+# ), ncol=2, byrow=TRUE)
+
+#pollen_df <- as.data.frame(pollen_locs_wisc)
+
+################ Minnesota Cores ###########################
+pollen_locs_minn <- matrix(c(
+  169181.33, 1165575,
+  127450.70,  1207032,
+  94360.15, 1252942
 ), ncol=2, byrow=TRUE)
-pollen_df <- as.data.frame(pollen_locs_wisc)
+pollen_df <- as.data.frame(pollen_locs_minn)
+
 colnames(pollen_df) <- c("x", "y")
 
 # Subset meta to relevant states
@@ -294,9 +308,11 @@ dist_matrix <- dist_matrix[1:nrow(meta_sub), (nrow(meta_sub)+1):nrow(dist_matrix
 
 # Keep points within 10 km of any pollen site
 domain <- meta_sub[rowSums(dist_matrix <= 30000) > 0, c("x","y")]
+coarse_centers = domain[,1:2]
 
-# coarse centers
-coarse_centers <- domain[,1:2]
+############### Keep all cores ################# 
+# domain <- meta[meta$state2 %in% states_pls, c("x", "y")]
+# coarse_centers = domain[,1:2]
 
 # check domain working with
 plot(coarse_centers[,1] * rescale,
@@ -308,6 +324,7 @@ plot(coarse_centers[,1] * rescale,
      axes = FALSE,
      xlab = "",
      ylab = "")
+
 plot(st_geometry(us.shp), add = TRUE, border = "black")
 
 
@@ -362,7 +379,7 @@ pollen_ts3 = pollen_ts2[idx_pollen_int, ]
 par(mfrow=c(1,1))
 plot(centers_veg$x*rescale, centers_veg$y*rescale)
 points(pollen_ts3$x*rescale, pollen_ts3$y*rescale, col='blue', pch=19)
-plot(us.shp, add=T, lwd=2)
+# plot(us.shp, add=T, lwd=2)
 
 ##########################################################################################################################
 ## chunk: prepare pollen data; aggregate over time intervals
