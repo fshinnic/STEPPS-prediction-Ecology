@@ -110,7 +110,11 @@ path_pls      = 'data/pls_umw_v0.6.csv'
 # path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
 
 # only no-varve Minnesota lakes
-path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
+# path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
+ 
+# only path of varve wisconsin lakes of interest (Ruby, Dark, LP)
+ path_pollen = 'data/fs_data/wisc_varve_pollen_ts.csv'
+ age_model = "varve"
 
 #determine what age method is being used and save the path to it. 
 if (bchron){
@@ -157,6 +161,9 @@ if (draw) {
   # replace age_bacon with the draw
   if (bchron){
     pollen_ts$age_bchron = age_sample
+  # if varve lakes are used
+  }else if (varve_dates && !is.na(pollen_ts$year)){
+    pollen_ts$Year = Year
   } else {
     pollen_ts$age_bacon  = age_sample  
   }
@@ -164,7 +171,9 @@ if (draw) {
 
 if (bchron){
   pollen_ts = pollen_ts[!is.na(pollen_ts$age_bchron),]
-} else {
+} else if (age_model == "varve") {
+  pollen_ts = pollen_ts[!is.na(pollen_ts$age_varve),]
+}else {
   pollen_ts = pollen_ts[!is.na(pollen_ts$age_bacon),]
 }
 
@@ -307,29 +316,29 @@ states_pls <- c("wisconsin", "michigan:north","minnesota")
 #pollen_df <- as.data.frame(pollen_locs_wisc)
 
 ################ Minnesota Cores ###########################
-pollen_locs_minn <- matrix(c(
-  169181.33, 1165575,
-  127450.70,  1207032,
-  94360.15, 1252942
-), ncol=2, byrow=TRUE)
-pollen_df <- as.data.frame(pollen_locs_minn)
-
-colnames(pollen_df) <- c("x", "y")
-
-# Subset meta to relevant states
-meta_sub <- meta %>% dplyr::filter(state2 %in% states_pls)
-
-# Calculate distance from each meta point to all pollen sites
-dist_matrix <- as.matrix(dist(rbind(meta_sub[,c("x","y")], pollen_df)))
-dist_matrix <- dist_matrix[1:nrow(meta_sub), (nrow(meta_sub)+1):nrow(dist_matrix)]
-
-# Keep points within 10 km of any pollen site
-domain <- meta_sub[rowSums(dist_matrix <= 30000) > 0, c("x","y")]
-coarse_centers = domain[,1:2]
+# pollen_locs_minn <- matrix(c(
+#   169181.33, 1165575,
+#   127450.70,  1207032,
+#   94360.15, 1252942
+# ), ncol=2, byrow=TRUE)
+# pollen_df <- as.data.frame(pollen_locs_minn)
+# 
+# # colnames(pollen_df) <- c("x", "y")
+# 
+# # Subset meta to relevant states
+# meta_sub <- meta %>% dplyr::filter(state2 %in% states_pls)
+# 
+# # Calculate distance from each meta point to all pollen sites
+# dist_matrix <- as.matrix(dist(rbind(meta_sub[,c("x","y")], pollen_df)))
+# dist_matrix <- dist_matrix[1:nrow(meta_sub), (nrow(meta_sub)+1):nrow(dist_matrix)]
+# 
+# # Keep points within 10 km of any pollen site
+# domain <- meta_sub[rowSums(dist_matrix <= 30000) > 0, c("x","y")]
+# coarse_centers = domain[,1:2]
 
 ############### Keep all cores ################# 
-# domain <- meta[meta$state2 %in% states_pls, c("x", "y")]
-# coarse_centers = domain[,1:2]
+domain <- meta[meta$state2 %in% states_pls, c("x", "y")]
+coarse_centers = domain[,1:2]
 
 # check domain working with
 plot(coarse_centers[,1] * rescale,
@@ -380,6 +389,11 @@ unique(pollen_locs)
 plot(centers_veg$x, centers_veg$y, col='green', pch=19, main='Vegetation vs Pollen')
 points(pollen_locs[,1], pollen_locs[,2], col='red', pch=19)
 
+# check how close the lakes are to eachother
+pollen_loc_unq <- unique(pollen_locs) 
+dists <- dist(pollen_loc_unq) / 1000
+dists
+max(dists)
 
 # FS - FIX ME - currently no matches ie no cores in the domain
 #pollen_int  = cores_near_domain(pollen_locs, centers_veg, cell_width = res*8000/rescale)

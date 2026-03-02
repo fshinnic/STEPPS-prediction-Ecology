@@ -27,6 +27,9 @@ one_time=FALSE #Whether or not to only predict with one timepoint. (Will break a
 lambda_fixed = TRUE # Is never used
 bchron = FALSE #Whether to use bchron or bacon ages 
 
+# change for if dates are varved or not
+varve_dates = TRUE
+
 # stat model flags
 decomp     = TRUE #Not used
 bt         = TRUE #Also never used

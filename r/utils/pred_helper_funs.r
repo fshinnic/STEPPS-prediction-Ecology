@@ -874,6 +874,8 @@ build_pollen_counts <- function(tmin, tmax, int,
     age_col <- "age_bacon"
   } else if (age_model == "bchron") {
     age_col <- "age_bchron"
+  } else if (age_model == "varve") {
+    age_col <- "age_varve"
   } else {
     age_col <- "age_default"
   }
