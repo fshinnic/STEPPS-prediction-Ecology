@@ -1,0 +1,147 @@
+# instal package to run .stan from Rstudio
+library(cmdstanr)
+#cmdstanr::install_cmdstan()
+
+# version check
+cmdstanr::cmdstan_version()
+# 2.38.0
+
+############## required parameters #################
+# K = taxa
+# N =   
+# T =  
+# N_knots 
+# N_cores
+# y , matrix [N_cores*T, K]
+#   rho                 # vector [K-1] > 0
+#   eta            # vector [K-1] > 0
+#   gamma          # real in [0,1]
+#   psi         # real > 0 (declared, unused)
+#   phi             # vector [K] > 0
+#   idx_cores      # int vector [N_cores]
+#   d                   # matrix [N, N]
+#   d_knots      # matrix [N_knots, N_knots]
+#   d_inter      # matrix [N, N_knots]
+#   w                      # matrix [N_cores, N]
+#   lag                # matrix [T, T] (declared, unused)
+#   N_p _                 # int (declared, unused)
+#   P                      # real scalar
+
+# FS chosen files (created in pred_build_data_main.r calling of pred_build_data.r)
+dirName = "runs/120knots_150to2150ybp_PL_test_grid_specs_v2.4_ar"
+subDir = "run1"
+fname <- file.path(dirName, subDir, 'input')  # same as used when saving
+rdata_file <- paste0(fname, '.rdata')
+
+# Load the file
+load(rdata_file)
+
+####### input parameters #######
+# K, N, T, N_cores, N_knots, res, gamma, phi, rho, eta, y, idx_cores, 
+# d_knots, d_inter, w, d, lag, P, N_p, meta_pol, meta_pol_all, knot_coords, 
+# centers_pls, centers_veg, centers_pol, taxa, ages, y_veg, N_pls
+
+# missing the psi parameter, but psi not actually used in the pred_stan_od_mpp_full.stan file
+
+###### run stan? #####
+
+# Compile the model
+stan_file <- file.path("cpp/pred_stan_od_mpp_simple.stan")
+mod <- cmdstan_model(stan_file) # now works!
+
+
+######### fix 1
+
+# Issue, given 12 dimensions, but STAN expects 11
+# variable name = rho
+# dims declared = (11)
+# dims found    = (12)
+
+# Running MCMC with 4 parallel chains...
+# 
+# Chain 1 Exception: mismatch in dimension declared and found in context; processing stage=data initialization; variable name=rho; position=0; dims declared=(11); dims found=(12) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpdpIOmx/model-b2945d9a6a0.stan', line 17, column 2 to column 27)
+# Warning: Chain 1 finished unexpectedly!
+
+# The stan code appears to have a reference taxa
+# takes rho = k-1, where right now the input params. have rho = k (12)
+# drop the "other" taxa to serve as a reference
+
+stopifnot(length(rho) == K)
+stopifnot(length(eta) == K)
+
+rho <- rho[1:(K-1)]
+eta <- eta[1:(K-1)]
+
+
+########## fix 2
+# check if the data contains a NA or missing value or an infemum
+check_bad <- function(x, name) {
+  if (any(is.na(x)))  cat(name, "contains NA\n")
+  if (any(is.nan(x))) cat(name, "contains NaN\n")
+  if (any(is.infinite(x))) cat(name, "contains Inf\n")
+}
+
+check_bad(rho, "rho")
+check_bad(eta, "eta")
+check_bad(phi, "phi")
+check_bad(y, "y")
+check_bad(d, "d")
+check_bad(d_knots, "d_knots")
+check_bad(d_inter, "d_inter")
+check_bad(w, "w")
+check_bad(P, "P")
+check_bad(gamma, "gamma")
+
+gamma = mean(gamma)
+
+# issue seems to be that the original stsan model expected gamma = scalar
+# changed gamma to be vector, calling gamme[K] since taxa-specific
+
+########## fix 3
+# variable name = w
+# dims declared = (199, 6378)
+
+# choice, remove 12 w = (12, 199, 6378)
+
+# FInley - Come back to this
+# reduces information by taxa (declared (1,17), found (12,1, 127)[...])
+#w <- array(w[1, , ], dim = c(1, 17))
+
+###### getting non-posistve definite matrix
+
+# print(rho)
+# summary(rho)        # check for very small or huge values
+# summary(d_knots)    # check for zeros or Inf/NaN
+w
+
+# Run the model
+fit <- mod$sample(
+  data = list(
+    K = K,
+    N = N,
+    T = T,
+    N_knots = N_knots,
+    N_cores = N_cores,
+    y = y,
+    rho = rho,
+    eta = eta,
+    gamma = gamma,
+    phi = phi,
+    idx_cores = idx_cores,
+    d = d,
+    d_knots = d_knots,
+    d_inter = d_inter,
+    w = w,
+    P = P, 
+    # psi, 
+    lag = lag, # not used
+    N_p = N_p # not used
+  ),
+  chains = 1,
+  parallel_chains = 1,
+  iter_warmup = 1000,
+  iter_sampling = 10
+)
+
+# Turn off draws
+ # ###### CURRENT ERROR MESSAGES #####

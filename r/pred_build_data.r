@@ -146,6 +146,10 @@ pls.raw = data.frame(read.table(file=path_pls, sep=",", row.names=1, header=TRUE
 # pollen data
 pollen_ts = read.table(path_pollen, header=TRUE, sep=',', stringsAsFactors=FALSE)
 
+# CHECK WITH ONE LAKE ### Lily Lake
+pollen_ts <- pollen_ts %>% dplyr::filter(sitename == "LilyLake")
+lilylake_id <- pollen_ts$id
+
 # FS - each lake has unique id and multiple bacon_draw#
 pol_ids = data.frame(id=unique(pollen_ts$id), stat_id=seq(1, length(unique(pollen_ts$id))))
 
@@ -305,17 +309,17 @@ states_pls <- c("wisconsin", "michigan:north","minnesota")
 
 ############### Only keep cores close to lakes ################# 
 
-############### Wisconsin Cores ###########################
-pollen_locs_wisc <- matrix(c(
-  295730.5, 1080402,
-  305160.3, 1063040,
-  302421.0, 1076170,
-  315188.8, 1087291
-), ncol=2, byrow=TRUE)
+############### Wisconsin Core Location ###########################
+# pollen_locs_wisc <- matrix(c(
+#   295730.5, 1080402,
+#   305160.3, 1063040,
+#   302421.0, 1076170,
+#   315188.8, 1087291
+# ), ncol=2, byrow=TRUE)
+# 
+# pollen_df <- as.data.frame(pollen_locs_wisc)
 
-pollen_df <- as.data.frame(pollen_locs_wisc)
-
-################ Minnesota Cores ###########################
+################ Minnesota Cores Location ###########################
 # pollen_locs_minn <- matrix(c(
 #   169181.33, 1165575,
 #   127450.70,  1207032,
@@ -323,8 +327,11 @@ pollen_df <- as.data.frame(pollen_locs_wisc)
 # ), ncol=2, byrow=TRUE)
 # pollen_df <- as.data.frame(pollen_locs_minn)
 # 
-# # colnames(pollen_df) <- c("x", "y")
-# 
+
+################# SUBSET DOMAIN ###########################
+
+# colnames(pollen_df) <- c("x", "y")
+# # 
 # # Subset meta to relevant states
 # meta_sub <- meta %>% dplyr::filter(state2 %in% states_pls)
 # 
@@ -332,9 +339,10 @@ pollen_df <- as.data.frame(pollen_locs_wisc)
 # dist_matrix <- as.matrix(dist(rbind(meta_sub[,c("x","y")], pollen_df)))
 # dist_matrix <- dist_matrix[1:nrow(meta_sub), (nrow(meta_sub)+1):nrow(dist_matrix)]
 # 
-# Keep points within 10 km of any pollen site
-domain <- meta_sub[rowSums(dist_matrix <= 30000) > 0, c("x","y")]
-coarse_centers = domain[,1:2]
+# # Keep points within 10 km of any pollen site
+# domain <- meta_sub[rowSums(dist_matrix <= 4000) > 0, c("x","y")]
+# coarse_centers = domain[,1:2]
+
 
 ############### Keep all cores ################# 
 domain <- meta[meta$state2 %in% states_pls, c("x", "y")]
@@ -354,10 +362,10 @@ plot(coarse_centers[,1] * rescale,
 plot(st_geometry(us.shp), add = TRUE, border = "black")
 
 
-
 # assign grid to centers_veg
 centers_veg = coarse_centers
-N = nrow(centers_veg) 
+N = nrow(centers_veg)
+
 
 # subdomain boundaries
 xlo = min(centers_veg$x)
@@ -439,6 +447,8 @@ pollen_ts$stat_id = pol_ids$stat[match(pollen_ts$id, pol_ids$id)]
 
 ages    = unique(sort(meta_pol$age)) # FS - only 21, each = 100 years
 
+
+
 # number of time slaces (20 of 100 years = 2000 years)
 T       = length(ages) 
 
@@ -470,6 +480,7 @@ for (i in 1:N_cores){
 }
 
 
+
 # some are duplicates, but we still need them as separate rows!
 # centers_pol <- meta_pol[!duplicated(cbind(meta_pol$x, meta_pol$y)), c('x', 'y')]
 
@@ -484,6 +495,50 @@ points(centers_veg[idx_cores,'x']*rescale, centers_veg[idx_cores,'y']*rescale, c
 points(centers_pol$x*rescale, centers_pol$y*rescale, col='blue', pch=4, cex=1.4)
 #plot(us.shp, add=TRUE)
 
+
+############### ONLY INCLUDE Lily Lake #################
+
+# Only keep Lily Lake pollen data
+pollen_ts <- pollen_ts %>% dplyr::filter(sitename == "LilyLake")
+lilylake_id <- pollen_ts$id
+
+# Find which grid cell(s) these cores map to
+lily_idx <- which(meta_pol$id %in% lilylake_id)
+lily_cell <- unique(idx_cores[lily_idx])
+lily_cell <- lily_cell[!is.na(lily_cell)]
+
+# Keep only that cell in vegetation centers (domain)
+centers_veg <- centers_veg[lily_cell, , drop = FALSE]
+N <- nrow(centers_veg)  # should be 1
+
+# Update idx_cores: all cores map to this single cell
+idx_cores <- rep(1, N_cores)
+
+# Knot coordinates = vegetation center for Lily Lake
+knot_coords <- centers_veg
+N_knots <- nrow(knot_coords)  # 1
+
+# Recompute distance matrices for single-point domain
+d       <- rdist(centers_veg, centers_veg); diag(d) <- 0
+d_knots <- rdist(knot_coords, knot_coords); diag(d_knots) <- 0
+d_inter <- rdist(centers_veg, knot_coords); d_inter[d_inter < 1e-8] <- 0
+d_pol   <- rdist(centers_pol, centers_veg); d_pol[d_pol < 1e-8] <- 0
+
+# Plot domain (should now show only Lily Lake)
+plot(centers_veg$x * rescale,
+     centers_veg$y * rescale,
+     col = "blue",
+     pch = 19,
+     cex = 1.5,
+     asp = 1,
+     axes = FALSE,
+     xlab = "X (m)",
+     ylab = "Y (m)",
+     main = "Domain: Lily Lake Only")
+points(centers_pol$x * rescale, centers_pol$y * rescale, col = "red", pch = 4, cex = 2)
+plot(st_geometry(us.shp), add = TRUE, border = "black", lwd = 0.5)
+
+######## END INCLUDE Lily Lake #################
 ## SAVE ENVIORNMENT THERE TO NOT RUN POLLEN AGG AGAIN ##
 # save.image("my_environment.RData")
 # load("my_environment.RData")
@@ -586,7 +641,23 @@ if (kernel=='pl'){ # Power Law is true
 
 # FS - changed since runs appears to have multiple layers
 # create the weighting matrix for pollen dispersion for each of the 12 taxa groups
-w <- build_weight_matrix(cal_post, d_pol, idx_cores, N, N_cores, runs[[1]])
+
+# FS - force d_pol to be distances from each core to the single Lily Lake cell
+d_pol <- rdist(centers_pol, centers_veg)
+d_pol[d_pol < 1e-8] <- 0  # zero out exact match distances
+
+# build w manually if N=1 to avoid array of zeros
+if (N == 1){
+  # simple Gaussian weighting for one cell (all pollen contributes fully to that cell)
+  w <- array(1, dim = c(K, N_cores, N))  # K taxa x N_cores x 1 cell
+} else {
+  w <- build_weight_matrix(cal_post, d_pol, idx_cores, N, N_cores, runs[[1]])
+}
+
+# If Power Law kerne
+if (kernel == "pl" & N == 1){
+  w <- array(1, dim = c(K, N_cores, N))
+}
 
 #####################################################################################
 # calculate potential d
@@ -712,7 +783,8 @@ save(K, N, T, N_cores, N_knots, res,
      centers_pls, centers_veg, centers_pol, taxa, ages, y_veg, N_pls,
      file=paste0(fname, '.rdata'))
 
-# convert to row-major 
+
+# convert to row-major (it seems like stepps only wants a two-dimensional matrix)
 if (KW){
   w_new = vector(length=0)
   for (k in 1:K)
@@ -752,3 +824,5 @@ if (dr==1){
   }
   close(con=conn)
 }
+
+

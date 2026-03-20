@@ -28,7 +28,7 @@ lambda_fixed = TRUE # Is never used
 bchron = FALSE #Whether to use bchron or bacon ages 
 
 # change for if dates are varved or not
-varve_dates = TRUE
+varve_dates = FALSE
 
 # stat model flags
 decomp     = TRUE #Not used
@@ -77,4 +77,5 @@ if (draw){
   dr = 1
   source('r/pred_build_data.r')
 }
+
 
