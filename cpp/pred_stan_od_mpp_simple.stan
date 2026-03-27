@@ -107,9 +107,9 @@ transformed data {
 parameters {
 
   // random walk smoothness parameter (0-20)
-  real<lower=0, upper=20> ksi;
+  real<lower=1e-5, upper=20> ksi;
 
-  vector<lower=0,upper=100>[W] sigma; // temporal varience HO - I am pretty sure this is SD
+  vector<lower=1e-5,upper=100>[W] sigma; // temporal varience HO - I am pretty sure this is SD
   vector<lower=0, upper=2>[W] lambda; // spactial range for temporal varience
 
   vector[W] mu;                        // scalar vector of species-varying overall adjustment term (mu_k in paper)
@@ -204,11 +204,16 @@ model {
       
       // t = 1
       mu_g[k][(i-1)*T + 1] = mu[k] + mu_t[k][1] + mu_g[k][(i-1)*T + 1];
-      sqrtvar[(i-1)*T + 1] = sqrt(eta2[k] - cvar);
+      //sqrtvar[(i-1)*T + 1] = sqrt(eta2[k] - cvar); // might be causing converging issues
+      sqrtvar[(i-1)*T + 1] = sqrt(fmax(eta2[k] - cvar, 1e-10)); // take max to ensure > 0
+
       // t > 1
       for (t in 2:T){
         mu_g[k][(i-1)*T + t] = mu[k] + mu_t[k][t] + mu_g[k][(i-1)*T + t] + qQinv_alpha[t-1][i];
-        sqrtvar[(i-1)*T + t] = sqrt(eta2[k] - cvar + sigma2[k] - qvar);
+        
+        
+       // sqrtvar[(i-1)*T + t] = sqrt(eta2[k] - cvar + sigma2[k] - qvar);
+       sqrtvar[(i-1)*T + t] = sqrt(fmax(eta2[k] - cvar + sigma2[k] - qvar, 1e-10));
       }
     }
     

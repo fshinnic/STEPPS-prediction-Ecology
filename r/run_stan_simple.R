@@ -28,7 +28,8 @@ cmdstanr::cmdstan_version()
 #   P                      # real scalar
 
 # FS chosen files (created in pred_build_data_main.r calling of pred_build_data.r)
-dirName = "runs/120knots_150to2150ybp_PL_test_grid_specs_v2.4_ar"
+# fname : "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar/run1/input"
+dirName = "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar"
 subDir = "run1"
 fname <- file.path(dirName, subDir, 'input')  # same as used when saving
 rdata_file <- paste0(fname, '.rdata')
@@ -105,9 +106,7 @@ gamma = mean(gamma)
 
 # FInley - Come back to this
 # reduces information by taxa (declared (1,17), found (12,1, 127)[...])
-#w <- array(w[1, , ], dim = c(1, 17))
-
-###### getting non-posistve definite matrix
+w <- matrix(1, nrow = 1, ncol = 1)###### getting non-posistve definite matrix
 
 # print(rho)
 # summary(rho)        # check for very small or huge values
@@ -137,11 +136,17 @@ fit <- mod$sample(
     lag = lag, # not used
     N_p = N_p # not used
   ),
-  chains = 1,
+  chains = 4,
   parallel_chains = 1,
   iter_warmup = 1000,
-  iter_sampling = 10
+  iter_sampling = 10,
+  output_dir = "/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs"
 )
 
-# Turn off draws
- # ###### CURRENT ERROR MESSAGES #####
+#### check outputs!!!! #####
+
+fit$draws()
+fit$draws(format = "df")
+(fit$summary())$variable
+fit$diagnostic_summary()
+

@@ -649,6 +649,7 @@ d_pol[d_pol < 1e-8] <- 0  # zero out exact match distances
 # build w manually if N=1 to avoid array of zeros
 if (N == 1){
   # simple Gaussian weighting for one cell (all pollen contributes fully to that cell)
+  # for single site 
   w <- array(1, dim = c(K, N_cores, N))  # K taxa x N_cores x 1 cell
 } else {
   w <- build_weight_matrix(cal_post, d_pol, idx_cores, N, N_cores, runs[[1]])
