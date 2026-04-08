@@ -27,8 +27,8 @@ one_time=FALSE #Whether or not to only predict with one timepoint. (Will break a
 lambda_fixed = TRUE # Is never used
 bchron = FALSE #Whether to use bchron or bacon ages 
 
-# change for if dates are varved or not
-varve_dates = FALSE
+# FINLEY - change for if dates are varved or not
+varve_dates = TRUE
 
 # stat model flags
 decomp     = TRUE #Not used
@@ -61,7 +61,7 @@ runs = list(run_pl_Ka_Kgamma)
 # for (run in runs){
   # for (res in grids){
 #     if (draw){
-#       for (dr in 1:ndraws){
+#       for (drN in 1:ndraws){
 #         source('r/pred_build_data.r')
 #       }
 #     }

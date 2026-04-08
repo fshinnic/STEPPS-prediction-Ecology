@@ -2,6 +2,16 @@
 library(cmdstanr)
 #cmdstanr::install_cmdstan()
 
+####### Old GOAL ####### 
+# Run STAN using one core (LilyLake) and one grid cell
+# Hopefully reduce the spatial importance and see if i can just use the code to get posteriors for vegetation over time
+
+####### Current GOAL ####### 
+
+# Run STAN using 3 cors from one grid cell to have more pollen information (check if improves rhat for convergence)
+
+####### END GOALs ####### 
+
 # version check
 cmdstanr::cmdstan_version()
 # 2.38.0
@@ -27,24 +37,30 @@ cmdstanr::cmdstan_version()
 #   N_p _                 # int (declared, unused)
 #   P                      # real scalar
 
+############## input files #################
+
 # FS chosen files (created in pred_build_data_main.r calling of pred_build_data.r)
-# fname : "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar/run1/input"
+
+# varve 
+# /Users/finleyjean/Documents/STEPPS-prediction-Ecology/runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar/run1/input.rdata
 dirName = "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar"
 subDir = "run1"
 fname <- file.path(dirName, subDir, 'input')  # same as used when saving
 rdata_file <- paste0(fname, '.rdata')
 
+
 # Load the file
 load(rdata_file)
 
 ####### input parameters #######
+
 # K, N, T, N_cores, N_knots, res, gamma, phi, rho, eta, y, idx_cores, 
 # d_knots, d_inter, w, d, lag, P, N_p, meta_pol, meta_pol_all, knot_coords, 
 # centers_pls, centers_veg, centers_pol, taxa, ages, y_veg, N_pls
 
 # missing the psi parameter, but psi not actually used in the pred_stan_od_mpp_full.stan file
 
-###### run stan? #####
+###### compile stan #####
 
 # Compile the model
 stan_file <- file.path("cpp/pred_stan_od_mpp_simple.stan")
@@ -58,14 +74,10 @@ mod <- cmdstan_model(stan_file) # now works!
 # dims declared = (11)
 # dims found    = (12)
 
-# Running MCMC with 4 parallel chains...
-# 
-# Chain 1 Exception: mismatch in dimension declared and found in context; processing stage=data initialization; variable name=rho; position=0; dims declared=(11); dims found=(12) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpdpIOmx/model-b2945d9a6a0.stan', line 17, column 2 to column 27)
-# Warning: Chain 1 finished unexpectedly!
-
 # The stan code appears to have a reference taxa
 # takes rho = k-1, where right now the input params. have rho = k (12)
 # drop the "other" taxa to serve as a reference
+# reference taxa = 
 
 stopifnot(length(rho) == K)
 stopifnot(length(eta) == K)
@@ -106,15 +118,23 @@ gamma = mean(gamma)
 
 # FInley - Come back to this
 # reduces information by taxa (declared (1,17), found (12,1, 127)[...])
-w <- matrix(1, nrow = 1, ncol = 1)###### getting non-posistve definite matrix
+# w <- matrix(1, nrow = 1, ncol = 1)###### getting non-posistve definite matrix , having issues with it sampeling across space
 
+
+# for running with 3 cores
+w <- matrix(1, nrow = 3, ncol = 1) 
 # print(rho)
 # summary(rho)        # check for very small or huge values
 # summary(d_knots)    # check for zeros or Inf/NaN
 w
 
+##### POSSIBLE NEXT OPTION ################
+
+
+
+########## RUN STAN 
 # Run the model
-fit <- mod$sample(
+fit_w_one_v2_50yr <- mod$sample(
   data = list(
     K = K,
     N = N,
@@ -145,8 +165,25 @@ fit <- mod$sample(
 
 #### check outputs!!!! #####
 
-fit$draws()
-fit$draws(format = "df")
-(fit$summary())$variable
-fit$diagnostic_summary()
+fit_w_one_v2_50yr$draws()
+fit_w_one_v2_50yr$draws(format = "df")
+(fit_w_one_v2_50yr$summary())$variable
+fit_w_one_v2_50yr$diagnostic_summary()
 
+fit_w_one_summary <- fit_w_one_v2_50yr$summary()  
+head(fit_w_one_v2_50yr)
+# Check the column names
+colnames(fit_w_one_v2_50yr)
+
+View(fit_w_one_summary)
+
+
+
+##### CURRENT STATUS ######
+# Rhat (Potential Scale Reduction Factor): Measures convergence by comparing within-chain variance to between-chain variance. A value of Rhat 
+# indicates that all chains have converged to the same distribution.
+# ess_bulk (Bulk Effective Sample Size): Estimates the effective sample size for the mean and median (center) of the posterior distribution, using rank-normalized draws. It indicates how well the main body of the distribution is sampled.
+# ess_tail (Tail Effective Sample Size): Estimates the effective sample size for the variance and 5%/95% quantiles (tails), defined as the minimum of the ESS for both 5% and 95% quantiles. 
+# “log density up to a constant”; essentially quantifies how well the model match the data
+# Rhats around 2!!!!!!
+# lp__

@@ -1,0 +1,146 @@
+---
+title: "Plot_STAN_Posteriors"
+author: "Finley Shinnick"
+date: "2026-04-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggrepel)
+library(stringr)
+library(posterior)
+
+```
+
+# Specify Data Posterior 
+
+```{r}
+# using wight = 1
+#data_posterior <- sum_df_one
+
+# using weight = 1, and outping r_new
+data_posterior <- fit_w_one_summary
+
+# define look up table: 
+taxa_names <- c("ash","beech","birch","elm","hemlock","maple","oak","other.conifer","other.hardwood","pine","spruce","tamarack") 
+```
+
+
+# Plot g[k,t]; log latent abundance
+
+```{r}
+g_long <- data_posterior %>%
+  filter(str_detect(variable, "^g\\[")) %>%
+  mutate(
+    k = as.integer(str_extract(variable, "(?<=g\\[)\\d+")),
+    t = as.integer(str_extract(variable, "(?<=,)\\d+"))
+  ) %>%
+  mutate(
+    taxon_name = factor(taxa_names[k], levels = taxa_names)
+  )
+
+ggplot(g_long, aes(x = t, y = mean, color = factor(taxon_name))) +
+  geom_line(size = 1.2) +
+  geom_text_repel(
+    data = g_long %>% group_by(taxon_name) %>% slice_tail(n = 1),  # last point per taxon
+    aes(label = taxon_name),
+    nudge_x = 1.4,             # move text slightly to the right
+    direction = "y",
+    hjust = 0,
+    segment.color = NA,        
+    size = 4
+  ) +
+  labs(title = "Latent log-abundance (g)", color = "Taxon") +
+  theme(legend.position = "none")
+```
+
+
+# Plot mu_t[k, t]; temporal trend
+
+```{r}
+mu_t_long <- data_posterior %>%
+  filter(str_detect(variable, "^mu_t\\[")) %>%
+  mutate(
+    k = as.integer(str_extract(variable, "(?<=mu_t\\[)\\d+")),
+    t = as.integer(str_extract(variable, "(?<=,)\\d+"))
+  ) %>%
+  mutate(
+    taxon_name = factor(taxa_names[k], levels = taxa_names)
+  )
+
+
+ggplot(mu_t_long, aes(x = t, y = mean, color = taxon_name)) +
+  geom_line(size = 1.2) +  # Thicker lines
+  geom_text_repel(
+    data = mu_t_long %>% group_by(taxon_name) %>% slice_tail(n = 1),  # last point per taxon
+    aes(label = taxon_name),
+    nudge_x = 1.4,             # move text slightly to the right
+    direction = "y",
+    hjust = 0,
+    segment.color = NA,        
+    size = 4
+  ) +
+  labs(title = "Temporal Trend", x = "Time", y = "Mean", color = "Taxon") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+```
+
+# Reconstruct r_new; New Pollent Counts
+
+- not working right now
+
+```{r}
+# Assuming `fit` is your Stan fit object
+draws_r <- fit_w_one_v2_50yr$draws("r")  # [iterations x N*T x K]
+
+r_df <- posterior::as_draws_df(draws_r)
+
+r_long <- r_df %>%
+  pivot_longer(cols = starts_with("r["), names_to = "index", values_to = "value") %>%
+  mutate(
+    i = as.integer(gsub("r\\[(\\d+),(\\d+)\\]", "\\1", index)),
+    k = as.integer(gsub("r\\[(\\d+),(\\d+)\\]", "\\2", index))
+  ) %>% mutate(
+    taxon_name = factor(taxa_names[k], levels = taxa_names)
+  )
+
+
+# posterior mean
+r_summary <- r_long %>%
+  group_by(i, taxon_name) %>%
+  summarise(mean = mean(value), .groups = "drop")
+
+r_ci <- r_long %>%
+  group_by(i, taxon_name) %>%
+  summarise(
+    mean = mean(value),
+    lower = quantile(value, 0.025),
+    upper = quantile(value, 0.975),
+    .groups = "drop"
+  )
+
+ggplot(r_summary, aes(x = i, y = mean, fill = factor(taxon_name))) +
+  geom_area() +
+  labs(
+    title = "Vegetation Composition Over Time",
+    x = "Time",
+    y = "Proportion",
+    fill = "Taxon"
+  ) +
+  theme_minimal()
+
+ggplot(r_ci, aes(x = i, y = mean)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) +
+  facet_wrap(~taxon_name) +
+  theme_minimal()
+```
+

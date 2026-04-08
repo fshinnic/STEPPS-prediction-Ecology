@@ -1,19 +1,19 @@
-// GOAL //
-// Model ONE lake at ONE grid cell with ONE time series //
-// 3.19.2026 //
-
-// MAJOR MEMORY ISSUE //
-
-// Imported from STEPPS - PREDICTION (2/6/2026)
-//
-// // Spatio-temporal vegetation model; veg maps predicted from pollen counts
-// // Latent vegetation modeled using a predictive process
-// // Linked to multinomial pollen counts through an additive log-ratio sum to one constraint
-//
-// weighting to take gamma = mean(gamma[k]) and w[i, j] instead of accounting for taxa
-
+// // GOAL //
+// // Model ONE lake at ONE grid cell with ONE time series //
+// // 3.19.2026 //
+// 
+// // MAJOR MEMORY ISSUE //
+// 
+// // Imported from STEPPS - PREDICTION (2/6/2026)
+// //
+// // // Spatio-temporal vegetation model; veg maps predicted from pollen counts
+// // // Latent vegetation modeled using a predictive process
+// // // Linked to multinomial pollen counts through an additive log-ratio sum to one constraint
+// //
+// // weighting to take gamma = mean(gamma[k]) and w[i, j] instead of accounting for taxa
+// 
 data {
-  
+
   // Data initiation
   // Only momdels k-1 taxa explicetly
   int<lower=0> K;       // number of species
@@ -34,7 +34,7 @@ data {
  // vector<lower=0, upper=1>[K] gamma; // change to become taxa specific
 
   // real<lower=0> psi;            // pollen dispersal par - not actually used
-  
+
   // Dirichelt precision parameter
   vector<lower=0>[K] phi;       // controls over dispersion
 
@@ -74,7 +74,7 @@ transformed data {
   for (k in 1:W) eta2[k] = eta[k] * eta[k];
   for (i in 1:N_knots) zeros[i] = 0.0;
 
-  //makes Eye_knots an identity matrix. 
+  //makes Eye_knots an identity matrix.
   for (i in 1:N_knots)
     for (j in 1:N_knots)
       Eye_knots[i,j] = (i==j ? 1.0 : 0.0);
@@ -88,17 +88,17 @@ transformed data {
   for (k in 1:W){
     // Construct covariance at knots
     C_s[k] = exp(-d_knots / rho[k]);
-    
+
     // Add small jitter to diagonal for numerical stability (getting non-positive definite decomp)
     for (i in 1:N_knots)
       C_s[k][i,i] = C_s[k][i,i] + 1e-5;
-    
+
     // Cholesky decomposition
     C_s_L[k] = cholesky_decompose(C_s[k]);
-    
+
     // Inverse of the covariance
     C_s_inv[k]  = mdivide_right_tri_low(mdivide_left_tri_low(C_s_L[k], Eye_knots)', C_s_L[k])';
-    
+
     // Cell-to-knot covariance
     c_s[k] = exp(-d_inter / rho[k]);
   }
@@ -107,9 +107,9 @@ transformed data {
 parameters {
 
   // random walk smoothness parameter (0-20)
-  real<lower=1e-5, upper=20> ksi;
+  real<lower=0, upper=20> ksi;
 
-  vector<lower=1e-5,upper=100>[W] sigma; // temporal varience HO - I am pretty sure this is SD
+  vector<lower=0,upper=100>[W] sigma; // temporal varience HO - I am pretty sure this is SD
   vector<lower=0, upper=2>[W] lambda; // spactial range for temporal varience
 
   vector[W] mu;                        // scalar vector of species-varying overall adjustment term (mu_k in paper)
@@ -132,7 +132,7 @@ model {
   array[W] matrix[N_knots, N_knots] Q_s_L;
   array[W] matrix[N_knots, N_knots] Q_s_inv;
 
-  vector[W] sigma2; //Gaussian proccess variance. 
+  vector[W] sigma2; //Gaussian proccess variance.
 
   real cvar;
   real qvar;
@@ -163,14 +163,14 @@ model {
   }
 
   // LATENT GP (gaussian process)
-  
+
   for (k in 1:W){
     // spatially-varying mean
     alpha_s[k] ~ multi_normal_cholesky(zeros, eta2[k] * C_s_L[k]);
-    
+
     // Predictive process projection to cells
     Halpha_s = c_s[k] * (C_s_inv[k] * alpha_s[k]);
-    
+
     for (i in 1:N)
       for (t in 1:T)
         mu_g[k][(i-1)*T + t] = Halpha_s[i];
@@ -183,12 +183,12 @@ model {
 
     // temporal innovations - (random walk)
     alpha_t[(k-1)*(T-1) + 1] ~ multi_normal_cholesky(zeros, cholesky_decompose(1/sigma2[k] * Q_s_inv[k]));
-   
+
     for (t in 2:(T-1))
       alpha_t[(k-1)*(T-1) + t] ~ multi_normal_cholesky(alpha_t[(k-1)*(T-1)+t-1], cholesky_decompose(1/sigma2[k] * Q_s_inv[k]));
 
     for (t in 1:(T-1))
-      qQinv_alpha[t] = q_s[k] * Q_s_inv[k] * alpha_t[(k-1)*(T-1)+t]; // Spatial process term for all time points. 
+      qQinv_alpha[t] = q_s[k] * Q_s_inv[k] * alpha_t[(k-1)*(T-1)+t]; // Spatial process term for all time points.
 
     // time-varying mean (random walk)
     for (i in 2:T)
@@ -197,26 +197,23 @@ model {
     // builds full spatio-temporal mean and variance
     for (i in 1:N){
       c_i = row(c_s[k], i);//variance between knots and cells for a given taxa and time
-      cvar = eta2[k] * c_i * C_s_inv[k] * c_i'; //Maybe the covariance for the mu terms in the gaussian process? Not sure. 
+      cvar = eta2[k] * c_i * C_s_inv[k] * c_i'; //Maybe the covariance for the mu terms in the gaussian process? Not sure.
 
       q_i = row(q_s[k], i); //Variance of innovations for a given taxa and cell?
       qvar = sigma2[k] * q_i * Q_s_inv[k] * q_i';
-      
+
       // t = 1
       mu_g[k][(i-1)*T + 1] = mu[k] + mu_t[k][1] + mu_g[k][(i-1)*T + 1];
-      //sqrtvar[(i-1)*T + 1] = sqrt(eta2[k] - cvar); // might be causing converging issues
-      sqrtvar[(i-1)*T + 1] = sqrt(fmax(eta2[k] - cvar, 1e-10)); // take max to ensure > 0
+      //sqrtvar[(i-1)*T + 1] = sqrt(eta2[k] - cvar); # might be causing converging issues
+      sqrtvar[(i-1)*T + 1] = sqrt(fmax(eta2[k] - cvar, 1e-10)); // take max
 
       // t > 1
       for (t in 2:T){
         mu_g[k][(i-1)*T + t] = mu[k] + mu_t[k][t] + mu_g[k][(i-1)*T + t] + qQinv_alpha[t-1][i];
-        
-        
-       // sqrtvar[(i-1)*T + t] = sqrt(eta2[k] - cvar + sigma2[k] - qvar);
-       sqrtvar[(i-1)*T + t] = sqrt(fmax(eta2[k] - cvar + sigma2[k] - qvar, 1e-10));
+        sqrtvar[(i-1)*T + t] = sqrt(eta2[k] - cvar + sigma2[k] - qvar);
       }
     }
-    
+
     // Sample latent Gaussian field
     for (i in 1:N*T)
       g[k][i] ~ normal(mu_g[k][i], sqrtvar[i]);
@@ -253,7 +250,7 @@ model {
         // local vegetation contribution
         r_new[(i-1)*T + t] = gamma * r[idx_core]; // old has gamma = scalar
         // r_new[(i-1)*T + t] = gamma[K] * r[idx_core];
-        
+
         // long-distance pollen contribution
         out_sum = rep_vector(0.0, K);
         sum_w = 0;
@@ -263,16 +260,16 @@ model {
             out_sum += w[i,j] * r[(j-1)*T + t];
 
         sum_w = sum(out_sum);
-        
+
         // end long-distance pollen contribution
-        
-        // if there is long distance pollen contribution: 
+
+        // if there is long distance pollen contribution:
         if (sum_w > 0)
           r_new[(i-1)*T + t] += (1-gamma) * out_sum / sum_w; // old has gamma = scalar
          // r_new[(i-1)*T + t] += (1-gamma[K]) * out_sum / sum_w;
       }
     }
-    
+
     // Dirichlet–Multinomial likelihood
     for (i in 1:N_cores*T){
       if (sum(y[i]) > 0){
@@ -289,4 +286,107 @@ model {
   }
 }
 
+// save additional outputs including observed pollen
+generated quantities {
+  array[N*T] vector[K] r;
+  array[N_cores*T] vector[K] r_new;
+
+  for (i in 1:N*T){
+    real sum_exp = 0;
+    for (k in 1:(K-1))
+      sum_exp += exp(g[k,i]);
+
+    for (k in 1:(K-1))
+      r[i,k] = exp(g[k,i]) / (1 + sum_exp);
+
+    r[i,K] = 1 / (1 + sum_exp);
+  }
+
+
+}
+
+
+
+// // GOAL:
+// // Single lake, single cell, time series only
+// // Spatial structure REMOVED
+// 
+// data {
+//   int<lower=1> K;     // number of taxa (12)
+//   int<lower=1> T;     // number of time points (20)
+//   array[T, K] int y;  // pollen counts per time
+//   vector<lower=0>[K] phi;  // Dirichlet precision
+// }
+// 
+// transformed data {
+//   int W = K - 1;  // controls over dispersion (but there won't be dispersion...?)
+// }
+// 
+// parameters {
+//   vector[W] mu;
+// 
+//   vector<lower=0>[W] sigma_rw;
+//   vector<lower=0>[W] sigma_g;
+// 
+//   array[W] vector[T] mu_t;
+//   array[W] vector[T] g;
+// }
+// 
+// 
+// // actual model
+// model {
+//   vector[T] sum_exp_g;
+//   array[T] vector[K] r;
+// 
+//   mu ~ normal(0, 20);
+//   sigma_rw ~ normal(0, 2);
+//   sigma_g ~ normal(0, 2);
+// 
+//   for (k in 1:W) {
+//     mu_t[k][1] ~ normal(0, 5);
+// 
+//     for (t in 2:T)
+//       mu_t[k][t] ~ normal(mu_t[k][t-1], sigma_rw[k]);
+// 
+//     for (t in 1:T)
+//       g[k][t] ~ normal(mu[k] + mu_t[k][t], sigma_g[k]);
+//   }
+// 
+//   //  LATENT PROCESS
+//   for (k in 1:W) {
+//     for (t in 1:T) {
+//       // g[k][t] ~ normal(mu[k] + mu_t[k][t], sigma[k]);
+//       g[k][t] ~ normal(mu[k] + mu_t[k][t], sigma[k]);
+//     }
+//   }
+// 
+//   //
+//   for (t in 1:T) {
+//     sum_exp_g[t] = 0;
+// 
+//     for (k in 1:W)
+//       sum_exp_g[t] += exp(g[k][t]);
+// 
+//     for (k in 1:W)
+//       r[t][k] = exp(g[k][t]) / (1 + sum_exp_g[t]);
+// 
+//     r[t][K] = 1 / (1 + sum_exp_g[t]);
+//   }
+// 
+//   // DIRICHLET-MULTINOMIAL 
+//   for (t in 1:T) {
+//     if (sum(y[t]) > 0) {
+//       vector[K] kappa = phi .* r[t];
+//       real A = sum(kappa);
+//       real N = sum(y[t]);
+// 
+//       target += lgamma(N + 1) + lgamma(A) - lgamma(N + A);
+// 
+//       for (k in 1:K)
+//         target += -lgamma(y[t,k] + 1)
+//                   + lgamma(y[t,k] + kappa[k])
+//                   - lgamma(kappa[k]);
+//     }
+//   }
+// }
 

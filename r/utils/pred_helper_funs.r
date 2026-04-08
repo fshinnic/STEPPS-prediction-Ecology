@@ -957,12 +957,17 @@ build_pollen_counts <- function(tmin, tmax, int,
           # Take the metadata from the first sample, add aggregated age & mark as non-zero
           meta_agg <- rbind(meta_agg,
                             data.frame(meta_pol[age_rows[1], c("id","x", "y","sitename","lat","long","state","altitude")],
-                                       age  = age / 100,  # interval in centuries
-                                       zero = FALSE))
+                                       # age  = age / 100,  # interval in centuries
+                                      age = age / 50, # intrval in 50 years
+                                        zero = FALSE))
           
           # Store metadata for all individual samples in this interval with aggregated age
           meta_all_row <- meta_pol[age_rows, , drop = FALSE]
-          meta_all_row$age <- age / 100
+       
+          # age in 100 years / centuries
+          # meta_all_row$age <- age / 100
+          meta_all_row$age <- age / 50 
+          
           meta_all <- rbind(meta_all, meta_all_row)
           
           # Case 2: Exactly one sample in this interval
@@ -975,12 +980,16 @@ build_pollen_counts <- function(tmin, tmax, int,
           # Take the metadata, add aggregated age, mark as non-zero
           meta_agg <- rbind(meta_agg,
                             data.frame(meta_pol[age_rows[1], c("id","x", "y","sitename","lat","long","state","altitude")],
-                                       age  = age / 100,
+                                       # age in centuries
+                                       #age  = age / 100,
+                                       age  = age / 50,
                                        zero = FALSE))
           
           # Store metadata for this sample
           meta_all_row <- meta_pol[age_rows, , drop = FALSE]
+          # age in centuries / 100 years
           meta_all_row$age <- age / 100
+          meta_all_row$age <- age / 50
           meta_all <- rbind(meta_all, meta_all_row)
           
           # Case 3: No samples in this interval
@@ -996,7 +1005,10 @@ build_pollen_counts <- function(tmin, tmax, int,
           # Mark this interval as zero (no sample) in the aggregated metadata
           meta_agg <- rbind(meta_agg,
                             data.frame(meta_row,
-                                       age  = age / 100,
+                                       # age in centuries
+                                     #  age  = age / 100,
+                                       
+                                       age  = age / 50,
                                        zero = TRUE))
           
           # Store metadata for all samples in the core, but set ages to NA
@@ -1058,14 +1070,20 @@ build_pollen_counts_fast_core <- function(tmin, tmax, int, pollen_ts){
           counts_agg = rbind(counts_agg, colSums(counts[age_rows, ]))
           
           meta_agg      = rbind(meta_agg, meta_pol[core_rows[1],])
-          meta_agg$ages[nrow(meta_agg)] = age/100
+         
+          # time in 100 year intervals
+          # meta_agg$ages[nrow(meta_agg)] = age/100
+          meta_agg$ages[nrow(meta_agg)] = age/50
           
         } else if (length(age_rows) == 1){
           
           counts_agg = rbind(counts_agg, counts[age_rows, ])
           
           meta_agg      = rbind(meta_agg, meta_pol[core_rows[1],])
-          meta_agg$ages[nrow(meta_agg)] = age/100
+          
+          # time in 100 year intervals
+          # meta_agg$ages[nrow(meta_agg)] = age/100
+          meta_agg$ages[nrow(meta_agg)] = age/50
           
         } else if (length(age_rows) == 0){
           
@@ -1073,7 +1091,10 @@ build_pollen_counts_fast_core <- function(tmin, tmax, int, pollen_ts){
           counts_agg = rbind(counts_agg, rep(0,ncol(counts_agg)))
           
           meta_agg      = rbind(meta_agg, meta_pol[core_rows[1],])
-          meta_agg$ages[nrow(meta_agg)] = age/100
+          
+          # time in 100 year intervals
+          # meta_agg$ages[nrow(meta_agg)] = age/100
+          meta_agg$ages[nrow(meta_agg)] = age/50
         }
         
       }
