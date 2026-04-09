@@ -1,4 +1,4 @@
-################################################################################
+########################### FILE INFORMATION ###################################
 ## This file will do the pre-processing, of input data and running of the STEPPS
 ## model (probably)
 ##
@@ -11,7 +11,7 @@
 ##
 ## Outputs: 
 ##
-################################################################################
+########################## LOAD LIBRARIES + HELPER FUNCTIONS ###################
 library(fields)
 library(rstan)
 library(sp)
@@ -26,9 +26,7 @@ library(sf)
 #Load in all the functions created in pred_helper_funs for use here. 
 source(file.path(getwd(), "r/utils/pred_helper_funs.r"))
 
-#getwd() #HO - Unnecessary, can we delete this?
-
-# #####
+# ############################## DEFINE VARIABLES ##############################
 # // STEPPS pollen-vegetation prediction model with no temporal component
 # // Implemented using Stan with a user provided manual gradient function
 # // Gradient function parallelized using openMP (can make use of ALL cores within a node)
@@ -52,8 +50,6 @@ source(file.path(getwd(), "r/utils/pred_helper_funs.r"))
 # // w :  vector of taxon-specific weight matrices; vector length K; matrix dimension N_cores by N
 
 
-######################################################################################################################################
-# user defs
 ######################################################################################################################################
 
 #Read in map data about the US
