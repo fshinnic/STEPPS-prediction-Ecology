@@ -50,14 +50,16 @@ source(file.path(getwd(), "r/utils/pred_helper_funs.r"))
 # // w :  vector of taxon-specific weight matrices; vector length K; matrix dimension N_cores by N
 
 
-######################################################################################################################################
+#################################### READ IN US  MAP ###############################
 
 #Read in map data about the US
 # us albers shape file
 #us.shp <- readOGR('data/map/us_alb.shp', 'us_alb')
 us.shp <- sf::st_read('data/map/us/us_alb.shp', 'us_alb')
 
-#######  CENTURY TIME STEPPS ######
+###################################  TIME STEP SIZE ############################
+
+######## CENTURY TIME STEP (100 YEARS) ######
 # # reconstruction limits and bin-width
 # int  = 100 #Year interval for STEPPS model
 # 
@@ -69,18 +71,27 @@ us.shp <- sf::st_read('data/map/us/us_alb.shp', 'us_alb')
 # } else {
 #   tmax = tmin + 20*int
 # }
-####### HALF CENTURY TIME STEPPS ######
+
+# ###### HALF CENTURY TIME STEPPS ######
+
 # reconstruction limits and bin-width
 int  = 50 #Year interval for STEPPS model
  
 tmin = 150 #Presumably 150 years before present which matches DawsonEA2019
-#Determine how far back we are modeling. 
+
+
+# Determine how far back we are modeling. 
 if (one_time) {
   tmin = tmin + (slice-1)*int #Slice has not been defined. This will not work. 
   tmax = tmin + int
 } else {
   tmax = tmin + 40*int
 }
+
+
+############################# DEFINE STATES AND TAXA ###########################
+
+# ############################ SCALING ###########################
 
 # rescale
 rescale = 1e6 #Conversion factor used for rescaling the spatial grids. 
@@ -94,6 +105,8 @@ suff    = paste(grid_specs, '_', version, sep='')
 states_pol = c('minnesota', 'wisconsin', 'michigan:north')
 states_pls = c('minnesota', 'wisconsin', 'michigan:north')
 
+# ############################ TAXA ###########################
+
 # specify the taxa to use
 # must be from the list: taxa_sub = c('oak', 'pine', 'maple', 'birch', 'tamarack', 'beeh', 'elm', 'spruce', 'ash', 'hemlock')
 # always have: 'other.hardwood' and 'other.conifer'
@@ -104,27 +117,37 @@ taxa_sub = toupper(c('oak', 'pine', 'maple', 'birch', 'tamarack', 'beech', 'elm'
 K = as.integer(length(taxa_sub) + 1)
 W = K-1 
 
-##########################################################################################################################
-## paths and filenames to write to meta file
-##########################################################################################################################
+##################PATTH and FILE NAMES TO META FILES ########################################################################################################
+
 suff_veg = paste0('12taxa_6341cells_', nknots, 'knots') #Used to find the correct vegetation data. 
 
 path_grid = 'data/grid/umw_3by_v2.rdata'
 
 path_pls      = 'data/pls_umw_v0.6.csv'
 
-# All pollen data sets
+path_cal      = paste0('data/calibration/', runs[[1]]$suff_fit,'.csv')
+path_veg_data = paste0('data/veg_data_', suff_veg, '_v0.4.rdata')
+
+
+# path_veg_pars = paste0('data/', suff_veg, '_nb_v0.5/veg_pars_', nknots, 'knots.rdata') #HO -This is not a file or directory that exists. Replacing with what I think is correct
+path_veg_pars = 'data/veg_pars_120knots.rdata'
+
+# ############ CHOSE POLLEN DATA SET TO USE #####################################
+
+## All pollen data sets
 # path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
 
-# Only non-varve lakes of interest
+## Only non-varve lakes of interest
 # path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
 
-# only no-varve Minnesota lakes
+## only no-varve Minnesota lakes
 # path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
  
-# only path of varve wisconsin lakes of interest (Ruby, Dark, LP)
+## only path of varve wisconsin lakes of interest (Ruby, Dark, LP)
 path_pollen = 'data/fs_data/wisc_varve_pollen_ts.csv'
 age_model = "varve"
+
+# ############# DEFINE AGE METHOD ########################################## 
 
 #determine what age method is being used and save the path to it. 
 if (bchron){
@@ -133,15 +156,7 @@ if (bchron){
   path_age_samples    = 'data/bacon_ages'
 }
 
-path_cal      = paste0('data/calibration/', runs[[1]]$suff_fit,'.csv')
-path_veg_data = paste0('data/veg_data_', suff_veg, '_v0.4.rdata')
-
-
-# path_veg_pars = paste0('data/', suff_veg, '_nb_v0.5/veg_pars_', nknots, 'knots.rdata') #HO -This is not a file or directory that exists. Replacing with what I think is correct
-path_veg_pars = 'data/veg_pars_120knots.rdata'
-##########################################################################################################################
-## read in tables and data
-##########################################################################################################################
+##############READ TAXA CONVERSION AND DATA ############################################################################################################
 
 # conversion tables
 tree_type = read.table('data/assign_HW_CON.csv', sep=',', row.names=1, header=TRUE)
@@ -156,10 +171,21 @@ pls.raw = data.frame(read.table(file=path_pls, sep=",", row.names=1, header=TRUE
 # pollen data
 pollen_ts = read.table(path_pollen, header=TRUE, sep=',', stringsAsFactors=FALSE)
 
-####### CHECK WITH LILY 
+# read in veg data and output
+# veg data specifies which knots to use
+load(path_veg_data)
+veg_post = readRDS(file=path_veg_pars)
+
+# read calibration data
+cal_fit = rstan::read_stan_csv(path_cal)
+
+# ################ CHECK WITH LILY #############################################
 # CHECK WITH ONE LAKE ### Lily Lake
 # pollen_ts <- pollen_ts %>% dplyr::filter(sitename == "LilyLake")
 # lilylake_id <- pollen_ts$id
+
+
+# ################ DEFINE AGE COLLUMN TO USE  #############################################
 
 # FS - each lake has unique id and multiple bacon_draw#
 pol_ids = data.frame(id=unique(pollen_ts$id), stat_id=seq(1, length(unique(pollen_ts$id))))
@@ -192,8 +218,6 @@ if (bchron){
   pollen_ts = pollen_ts[!is.na(pollen_ts$age_bacon),]
 }
 
-
-
 # max_ages
 if (constrain){
   if (bchron){
@@ -210,18 +234,8 @@ if (constrain){
   pollen_ts = pollen_ts[!drop_samples,]
 }
 
-cal_fit = rstan::read_stan_csv(path_cal)
 
-# read in veg data and output
-# veg data specifies which knots to use
-load(path_veg_data)
-veg_post = readRDS(file=path_veg_pars)
-# load(file=path_veg_pars)
-# veg_post = post
-
-##########################################################################################################################
-## read in and organize pls data
-##########################################################################################################################
+################## READ + ORGANIZE PLS DATA ########################################################################################################
 
 # changes taxa names to lower case
 colnames(pls.raw) = tolower(colnames(pls.raw))
@@ -259,7 +273,6 @@ meta        = meta[which(meta$state2 %in% states_pls),]
 
 centers_pls = data.frame(x=meta$x, y=meta$y)/rescale # megameters!
 
-
 # FS - Corrected for SP object; checks that seperated out the correct uppermidwest cells
 # plot(centers_pls[,1]*rescale, centers_pls[,2]*rescale, asp=1, axes=F,  col='antiquewhite4', xlab='',ylab='', pch=19, cex=0.2) # old code
 # plot(us.shp, add=T) # old code
@@ -292,16 +305,12 @@ N_pls = nrow(y_veg)
 # make sure columns are in order! 
 # y_veg = y_veg[,taxa]
 
-##########################################################################################################################
-## chunk: read in coarse grid and pollen data
-##########################################################################################################################
+############################## READ COARSE GRID AND POLLEN DATA ############################################################################################
 
 # FS - created domain of uppermidwest form PLS grid centers
 states_pls <- c("wisconsin", "michigan:north","minnesota")
 
-############### Only keep cores close to lakes ################# 
-
-############### Wisconsin Core Location ###########################
+# ############## KEEP Wisconsin Core Location ###########################
 # pollen_locs_wisc <- matrix(c(
 #   295730.5, 1080402,
 #   305160.3, 1063040,
@@ -311,7 +320,8 @@ states_pls <- c("wisconsin", "michigan:north","minnesota")
 # 
 # pollen_df <- as.data.frame(pollen_locs_wisc)
 
-############### Wisconsin Varve Core Location ###########################
+# ############## KEEP Wisconsin Varve Core Location ###########################
+
 pollen_locs_wisc_varve <- matrix(c(
   358152.4, 1001003,
   356758.9 ,1000213,
@@ -320,7 +330,7 @@ pollen_locs_wisc_varve <- matrix(c(
 
 pollen_df <- as.data.frame(pollen_locs_wisc_varve)
 
-################ Minnesota Cores Location ###########################
+# ############### KEEP Minnesota Cores Location ###########################
 # pollen_locs_minn <- matrix(c(
 #   169181.33, 1165575,
 #   127450.70,  1207032,
@@ -329,8 +339,8 @@ pollen_df <- as.data.frame(pollen_locs_wisc_varve)
 # pollen_df <- as.data.frame(pollen_locs_minn)
 # 
 
-################# SUBSET DOMAIN ###########################
-
+# ################ SUBSET DOMAIN ###########################
+# Use if keeping only a certain subset of lake cores
 colnames(pollen_df) <- c("x", "y")
 
 # Subset meta to relevant states
@@ -344,8 +354,7 @@ dist_matrix <- dist_matrix[1:nrow(meta_sub), (nrow(meta_sub)+1):nrow(dist_matrix
 domain <- meta_sub[rowSums(dist_matrix <= 4000) > 0, c("x","y")]
 coarse_centers = domain[,1:2]
 
-
-############### Keep all cores ################# 
+# ############## Keep all cores ################# 
 # domain <- meta[meta$state2 %in% states_pls, c("x", "y")]
 # coarse_centers = domain[,1:2]
 
@@ -367,16 +376,13 @@ plot(st_geometry(us.shp), add = TRUE, border = "black")
 centers_veg = coarse_centers
 N = nrow(centers_veg)
 
-
 # subdomain boundaries
 xlo = min(centers_veg$x)
 xhi = max(centers_veg$x)
 ylo = min(centers_veg$y)
 yhi = max(centers_veg$y)
 
-##########################################################################################################################
-## chunk: reorganize pollen data
-##########################################################################################################################
+############################## REORGANIZE POLLEN DATA ###########################
 
 # set tamarack to 0 at tamarack creek; see Dawson et al. QSR 2016
 pollen_ts[pollen_ts$id == 2624, 'TAMARACK'] = rep(0, sum(pollen_ts$id == 2624))
