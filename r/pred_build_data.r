@@ -391,7 +391,6 @@ saveRDS(pollen_ts, file='data/pollen_ts.RDS')
 
 # FS - only keep sites in "minnesota"      "wisconsin"      "michigan:north"
 pollen_ts1 = pollen_ts[which(pollen_ts$state %in% states_pol),]
-# colnames(pollen_ts1)
 
 # FS - had to edit this function to use sf instead (rerun pollen_to_albers.r file)
 # reproject pollen coords from lat long to Albers
@@ -427,9 +426,8 @@ plot(centers_veg$x*rescale, centers_veg$y*rescale)
 points(pollen_ts3$x*rescale, pollen_ts3$y*rescale, col='blue', pch=19)
 # plot(us.shp, add=T, lwd=2)
 
-##########################################################################################################################
-## chunk: prepare pollen data; aggregate over time intervals
-##########################################################################################################################
+################################# AGGREGATE IN TIME INTERVALS #########################################################################################
+
 # FS - Moved x and y columns to front so that they aren't lost in build_pollen_counts function
 pollen_ts3 <- pollen_ts3[, c("id", "x", "y", setdiff(colnames(pollen_ts3), c("id","x","y")))]
 
@@ -443,9 +441,8 @@ meta_pol_all = pollen_agg[[3]]
 meta_pol   = pollen_agg[[2]]
 counts     = pollen_agg[[1]]
 
-# since tamarack isn't everywhere
+# since tamarack isn't in every site, manually set it to 0
 counts[is.na(counts)] <- 0
-
 
 meta_pol$stat_id = pol_ids$stat_id[match(meta_pol$id, pol_ids$id)]
 meta_pol_all$stat_id = pol_ids$stat_id[match(meta_pol_all$id, pol_ids$id)]
@@ -453,8 +450,6 @@ meta_pol_all$stat_id = pol_ids$stat_id[match(meta_pol_all$id, pol_ids$id)]
 pollen_ts$stat_id = pol_ids$stat[match(pollen_ts$id, pol_ids$id)]
 
 ages    = unique(sort(meta_pol$age)) # FS - only 21, each = 100 years
-
-
 
 # number of time slaces (20 of 100 years = 2000 years)
 T       = length(ages) 
@@ -485,7 +480,6 @@ for (i in 1:N_cores){
   print(idx)
   centers_pol[i,] = c(meta_pol$x[idx], meta_pol$y[idx])  
 }
-
 
 
 # some are duplicates, but we still need them as separate rows!
@@ -545,6 +539,7 @@ points(centers_pol$x*rescale, centers_pol$y*rescale, col='blue', pch=4, cex=1.4)
 # points(centers_pol$x * rescale, centers_pol$y * rescale, col = "red", pch = 4, cex = 2)
 # plot(st_geometry(us.shp), add = TRUE, border = "black", lwd = 0.5)
 # 
+
 # ############### ONLY INCLUDE Varve Grids #################
 
 # Only keep varve grid  pollen data
@@ -582,11 +577,11 @@ plot(centers_veg$x * rescale,
      axes = FALSE,
      xlab = "X (m)",
      ylab = "Y (m)",
-     main = "Domain: Lily Lake Only")
+     main = "Domain: Varve Lakes Only")
 points(centers_pol$x * rescale, centers_pol$y * rescale, col = "red", pch = 4, cex = 2)
 plot(st_geometry(us.shp), add = TRUE, border = "black", lwd = 0.5)
 
-######## END INCLUDE Varve Lake #################
+# ####### END INCLUDE VARVE LAKES #################
 
 ## SAVE ENVIORNMENT THERE TO NOT RUN POLLEN AGG AGAIN ##
 # save.image("my_environment.RData")
@@ -596,9 +591,7 @@ plot(st_geometry(us.shp), add = TRUE, border = "black", lwd = 0.5)
 # FS - pollen check doesn't exist
 # idx_cores_all <- build_idx_cores(cbind(pollen_check$x, pollen_check$y), centers_veg, N_cores=nrow(pollen_check))
 
-c##########################################################################################################################
-## chunk 3: build distance matrices
-##########################################################################################################################
+# ################## BUILD DISTANCE MATRICIES #######################################################################################################
 
 # matrix between all possible begetation squares
 d = rdist(centers_veg, centers_veg)
@@ -615,9 +608,7 @@ d_pol[which(d_pol<1e-8)]=0
 
 N_knots = nrow(knot_coords)
 
-##########################################################################################################################
-## pull in calibration parameters
-##########################################################################################################################
+# ############################### PULL CALIRBATION PARAMETERS ##########################################################################################
 
 # Weight taxa dispersion differentially
 KW     = FALSE
@@ -709,10 +700,10 @@ if (kernel == "pl" & N == 1){
   w <- array(1, dim = c(K, N_cores, N))
 }
 
-#####################################################################################
+############ CALCULATE DISTANCES ###################################################################################
 # calculate potential d
 # used to determine C normalizing constant in the non-local contribution term
-#####################################################################################
+
 
 coord_pot = seq(-700000, 700000, by=8000)
 coord_pot = expand.grid(coord_pot, coord_pot)

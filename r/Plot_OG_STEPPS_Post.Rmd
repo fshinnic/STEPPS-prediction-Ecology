@@ -1,0 +1,139 @@
+---
+title: "Plot_OG_STEPPS_Post"
+author: "Finley Shinnick"
+date: "2026-04-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Functions
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(ncdf4)
+```
+
+
+## Load data
+
+```{r}
+# og_stepps_post <- load("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/og_STEPPS_products/lakes_stepps.RData")
+
+mean_stepps <- nc_open("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/og_STEPPS_products/2Kyrs_Comp_Mean_Level2_v1.0.nc")
+```
+
+
+```{r}
+# spatio-temporal extraction (per 12 taxa)
+x_coord <- ncvar_get(mean_stepps, "x")
+y_coord <- ncvar_get(mean_stepps, "y")
+time_vals <- ncvar_get(mean_stepps, "Time")
+
+# 
+taxa <- c("ASH", "BEECH", "BIRCH", "ELM", "HEMLOCK", "MAPLE", "OAK",
+           "OTHER.CONIFER", "OTHER.HARDWOOD", "PINE", "SPRUCE", "TAMARACK")
+
+# Extract proportions into long tibble
+df_proportions <- lapply(taxa, function(taxa) {
+  vals <- ncvar_get(mean_stepps, taxa)
+  
+  # vals has dimensions [x, y, Time]
+  expand.grid(
+    x = x_coord,
+    y = y_coord,
+    Time = time_vals
+  ) %>%
+    mutate(Proportion = as.vector(vals),
+           Taxa = taxa)
+})
+
+ASH_proportions <- df_proportions[[1]]
+BEECH_proportions<- df_proportions[[2]]
+BIRCH_proportions<- df_proportions[[3]]
+ELM_proportions<- df_proportions[[4]]
+HEMLOCK_proportions <- df_proportions[[5]]
+MAPLE_proportions<- df_proportions[[6]]
+OAK_proportions<- df_proportions[[7]]
+OTHER.CONIFER_proportions <- df_proportions[[8]]
+OTHER.HARDWOOD_proportions<- df_proportions[[9]]
+PINE_proportions<- df_proportions[[10]]
+SPRUCE_proportions<- df_proportions[[11]]
+TAMARACK_proportions<- df_proportions[[12]]
+
+# finley is such an inefficient coder - so sorry
+proportions_all <- bind_rows(ASH_proportions, BEECH_proportions, BIRCH_proportions, ELM_proportions, HEMLOCK_proportions, MAPLE_proportions, OAK_proportions, OTHER.CONIFER_proportions, OTHER.HARDWOOD_proportions, PINE_proportions, SPRUCE_proportions, TAMARACK_proportions)
+
+# check locations present
+unique((proportions_all)$x)
+unique((proportions_all)$y)
+
+# filter for only wisconsin varve locations
+# 
+pollen_locs_wisc_varve <- matrix(c(
+  358152.4, 1001003,
+  356758.9 ,1000213,
+  356204.7 ,1001203
+), ncol=2, byrow=TRUE)
+
+pollen_locs_wisc_varve <- as.data.frame(pollen_locs_wisc_varve)
+colnames(pollen_locs_wisc_varve) <- c("x", "y")
+
+
+###### NEED TO FILTER LOCATIONS STILL
+# get_min_dist <- function(x, y, pollen_df) {
+#   min(sqrt((pollen_df$x - x)^2 + (pollen_df$y - y)^2))
+# }
+# 
+# proportions_all <- proportions_all %>%
+#   rowwise() %>%
+#   mutate(dist_to_pollen = get_min_dist(x, y, pollen_locs_wisc_varve)) %>%
+#   ungroup()
+
+
+
+coords <- as.matrix(proportions_all[, c("x", "y")])
+pollen <- as.matrix(pollen_locs_wisc_varve)
+
+# compute distances to each pollen site
+dist_list <- lapply(1:nrow(pollen), function(i) {
+  sqrt((coords[,1] - pollen[i,1])^2 + (coords[,2] - pollen[i,2])^2)
+})
+
+# combine and take minimum distance
+proportions_all$dist_to_pollen <- do.call(pmin, dist_list)
+
+proportions_filtered <-proportions_all %>% filter(dist_to_pollen < 10000)
+
+
+# CHECK: 349000 x 1006000 = varve cells
+print(unique(proportions_filtered$x))
+print(unique(proportions_filtered$x))
+
+```
+
+## Plot Data
+
+```{r}
+
+label_df <- proportions_filtered %>%
+  group_by(Taxa) %>%
+  slice_max(order_by = -Time, n = 1) %>%  # rightmost point (since x = -Time)
+  ungroup()
+
+stepp_plot <- ggplot(proportions_filtered, 
+                     aes(x = -Time, y = Proportion, group = Taxa, color = Taxa)) +
+  geom_line() +
+  geom_text(data = label_df,
+            aes(label = Taxa),
+            hjust = 1.1,  
+            show.legend = FALSE) +
+  expand_limits(x = max(-proportions_filtered$Time) * 1.1) +
+  theme(legend.position = "none") + theme_minimal()
+
+```
+
+

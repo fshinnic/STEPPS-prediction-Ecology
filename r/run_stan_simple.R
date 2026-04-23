@@ -40,14 +40,11 @@ cmdstanr::cmdstan_version()
 ############## input files #################
 
 # FS chosen files (created in pred_build_data_main.r calling of pred_build_data.r)
-
-# varve 
-# /Users/finleyjean/Documents/STEPPS-prediction-Ecology/runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar/run1/input.rdata
+# fname : "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar/run1/input"
 dirName = "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar"
 subDir = "run1"
 fname <- file.path(dirName, subDir, 'input')  # same as used when saving
 rdata_file <- paste0(fname, '.rdata')
-
 
 # Load the file
 load(rdata_file)
@@ -74,10 +71,14 @@ mod <- cmdstan_model(stan_file) # now works!
 # dims declared = (11)
 # dims found    = (12)
 
+# Running MCMC with 4 parallel chains...
+# 
+# Chain 1 Exception: mismatch in dimension declared and found in context; processing stage=data initialization; variable name=rho; position=0; dims declared=(11); dims found=(12) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpdpIOmx/model-b2945d9a6a0.stan', line 17, column 2 to column 27)
+# Warning: Chain 1 finished unexpectedly!
+
 # The stan code appears to have a reference taxa
 # takes rho = k-1, where right now the input params. have rho = k (12)
 # drop the "other" taxa to serve as a reference
-# reference taxa = 
 
 stopifnot(length(rho) == K)
 stopifnot(length(eta) == K)
@@ -119,10 +120,8 @@ gamma = mean(gamma)
 # FInley - Come back to this
 # reduces information by taxa (declared (1,17), found (12,1, 127)[...])
 # w <- matrix(1, nrow = 1, ncol = 1)###### getting non-posistve definite matrix , having issues with it sampeling across space
+w <- matrix(1, nrow = 1, ncol = 1) 
 
-
-# for running with 3 cores
-w <- matrix(1, nrow = 3, ncol = 1) 
 # print(rho)
 # summary(rho)        # check for very small or huge values
 # summary(d_knots)    # check for zeros or Inf/NaN
@@ -134,7 +133,7 @@ w
 
 ########## RUN STAN 
 # Run the model
-fit_w_one_v2_50yr <- mod$sample(
+fit_w_one_v2 <- mod$sample(
   data = list(
     K = K,
     N = N,
@@ -165,17 +164,17 @@ fit_w_one_v2_50yr <- mod$sample(
 
 #### check outputs!!!! #####
 
-fit_w_one_v2_50yr$draws()
-fit_w_one_v2_50yr$draws(format = "df")
-(fit_w_one_v2_50yr$summary())$variable
-fit_w_one_v2_50yr$diagnostic_summary()
+fit$draws()
+fit$draws(format = "df")
+(fit$summary())$variable
+fit$diagnostic_summary()
 
-fit_w_one_summary <- fit_w_one_v2_50yr$summary()  
-head(fit_w_one_v2_50yr)
+fit_w_one_v2 <- fit_w_one_v2$summary()  
+head(fit_w_one_v2)
 # Check the column names
-colnames(fit_w_one_v2_50yr)
+colnames(fit_w_one_v2)
 
-View(fit_w_one_summary)
+View(fit_w_one_v2)
 
 
 

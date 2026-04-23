@@ -46,6 +46,7 @@ g_long <- data_posterior %>%
     taxon_name = factor(taxa_names[k], levels = taxa_names)
   )
 
+
 ggplot(g_long, aes(x = t, y = mean, color = factor(taxon_name))) +
   geom_line(size = 1.2) +
   geom_text_repel(
@@ -59,6 +60,7 @@ ggplot(g_long, aes(x = t, y = mean, color = factor(taxon_name))) +
   ) +
   labs(title = "Latent log-abundance (g)", color = "Taxon") +
   theme(legend.position = "none")
+
 ```
 
 
