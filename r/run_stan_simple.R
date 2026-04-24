@@ -41,13 +41,15 @@ cmdstanr::cmdstan_version()
 
 # FS chosen files (created in pred_build_data_main.r calling of pred_build_data.r)
 # fname : "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar/run1/input"
-dirName = "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar"
-subDir = "run1"
-fname <- file.path(dirName, subDir, 'input')  # same as used when saving
-rdata_file <- paste0(fname, '.rdata')
+# dirName = "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar"
+# subDir = "run1"
+# fname <- file.path(dirName, subDir, 'input')  # same as used when saving
+# rdata_file <- paste0(fname, '.rdata')
+# 
+# # Load the file
+# load(rdata_file)
 
-# Load the file
-load(rdata_file)
+load("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar/run1/input.rdata")
 
 ####### input parameters #######
 
@@ -120,7 +122,7 @@ gamma = mean(gamma)
 # FInley - Come back to this
 # reduces information by taxa (declared (1,17), found (12,1, 127)[...])
 # w <- matrix(1, nrow = 1, ncol = 1)###### getting non-posistve definite matrix , having issues with it sampeling across space
-w <- matrix(1, nrow = 1, ncol = 1) 
+w <- matrix(1, nrow = 3, ncol = 1) 
 
 # print(rho)
 # summary(rho)        # check for very small or huge values
@@ -164,10 +166,10 @@ fit_w_one_v2 <- mod$sample(
 
 #### check outputs!!!! #####
 
-fit$draws()
-fit$draws(format = "df")
-(fit$summary())$variable
-fit$diagnostic_summary()
+fit_w_one_v2$draws()
+fit_w_one_v2$draws(format = "df")
+(fit_w_one_v2$summary())$variable
+fit_w_one_v2$diagnostic_summary()
 
 fit_w_one_v2 <- fit_w_one_v2$summary()  
 head(fit_w_one_v2)
@@ -175,6 +177,9 @@ head(fit_w_one_v2)
 colnames(fit_w_one_v2)
 
 View(fit_w_one_v2)
+
+setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs")
+write.csv(fit_w_one_v2, "stan_simple_varve_v2", row.names = FALSE)
 
 
 

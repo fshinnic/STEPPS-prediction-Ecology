@@ -118,21 +118,23 @@ print(unique(proportions_filtered$x))
 ## Plot Data
 
 ```{r}
-
 label_df <- proportions_filtered %>%
   group_by(Taxa) %>%
-  slice_max(order_by = -Time, n = 1) %>%  # rightmost point (since x = -Time)
+  slice_max(order_by = Time, n = 1) %>%   # last time point
   ungroup()
 
-stepp_plot <- ggplot(proportions_filtered, 
-                     aes(x = -Time, y = Proportion, group = Taxa, color = Taxa)) +
-  geom_line() +
-  geom_text(data = label_df,
-            aes(label = Taxa),
-            hjust = 1.1,  
-            show.legend = FALSE) +
+taxa_order <- label_df$Taxa
+
+proportions_filtered$Taxa <- factor(proportions_filtered$Taxa,
+                                    levels = taxa_order)
+
+ggplot((proportions_filtered ), 
+       aes(x = -Time, y = Proportion, group = Taxa, color = Taxa)) +
+  geom_line(linewidth = 1) +
   expand_limits(x = max(-proportions_filtered$Time) * 1.1) +
-  theme(legend.position = "none") + theme_minimal()
+  
+  theme_minimal() +
+  theme(legend.position = "right") # i want to sort the legend by label_df  
 
 ```
 

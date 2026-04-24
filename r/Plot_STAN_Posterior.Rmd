@@ -24,9 +24,9 @@ library(posterior)
 ```{r}
 # using wight = 1
 #data_posterior <- sum_df_one
-
+fit_w_one_v2 <- read.csv("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs/stan_simple_varve_v2")
 # using weight = 1, and outping r_new
-data_posterior <- fit_w_one_summary
+data_posterior <- fit_w_one_v2
 
 # define look up table: 
 taxa_names <- c("ash","beech","birch","elm","hemlock","maple","oak","other.conifer","other.hardwood","pine","spruce","tamarack") 
@@ -47,19 +47,25 @@ g_long <- data_posterior %>%
   )
 
 
-ggplot(g_long, aes(x = t, y = mean, color = factor(taxon_name))) +
+ggplot(g_long, aes(x = -t, y = mean, color = factor(taxon_name))) +
   geom_line(size = 1.2) +
   geom_text_repel(
     data = g_long %>% group_by(taxon_name) %>% slice_tail(n = 1),  # last point per taxon
     aes(label = taxon_name),
     nudge_x = 1.4,             # move text slightly to the right
     direction = "y",
-    hjust = 0,
+    hjust = 2,
     segment.color = NA,        
     size = 4
   ) +
   labs(title = "Latent log-abundance (g)", color = "Taxon") +
-  theme(legend.position = "none")
+  theme(legend.position = "none") + theme_minimal()
+
+ggplot(g_long, aes(x = -t, y = mean, color = factor(taxon_name))) +
+  geom_line(size = 1.2) +
+  
+  labs(title = "Latent log-abundance (g)", color = "Taxon") +
+  theme(legend.position = "none") + theme_minimal()
 
 ```
 
@@ -100,6 +106,7 @@ ggplot(mu_t_long, aes(x = t, y = mean, color = taxon_name)) +
 - not working right now
 
 ```{r}
+
 # Assuming `fit` is your Stan fit object
 draws_r <- fit_w_one_v2_50yr$draws("r")  # [iterations x N*T x K]
 
