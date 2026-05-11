@@ -50,8 +50,23 @@ cmdstanr::cmdstan_version()
 # # Load the file
 # load(rdata_file)
 
-load("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar/run1/input.rdata")
+# MANUALLY CHANGE
+lake_group = "wisc_varve"
+# options: "minn_nonvarve", "wisc_varve", "wisc_nonvarve"
 
+# load in lake group working with:
+if (lake_group == "wisc_varve") {
+  load("runs/wisc_varve_1knots_150to2150ybp_PL_test_grid_specs_wisc_varve_v2.4_ar/run1/input.rdata")
+  
+} else if (lake_group == "wisc_nonvarve") {
+  load("runs/wisc_nonvarve_4knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_v2.4_ar/run1/input.rdata")
+  
+} else if (lake_group == "minn_nonvarve") {
+  load("runs/minn_nonvarve_3knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_v2.4_ar/run1/input.rdata")
+  
+} else {
+  stop("Unknown lake_group value")
+}
 ####### input parameters #######
 
 # K, N, T, N_cores, N_knots, res, gamma, phi, rho, eta, y, idx_cores, 
@@ -68,17 +83,6 @@ mod <- cmdstan_model(stan_file) # now works!
 
 
 ######### fix 1
-
-# Issue, given 12 dimensions, but STAN expects 11
-# variable name = rho
-# dims declared = (11)
-# dims found    = (12)
-
-# Running MCMC with 4 parallel chains...
-# 
-# Chain 1 Exception: mismatch in dimension declared and found in context; processing stage=data initialization; variable name=rho; position=0; dims declared=(11); dims found=(12) (in '/var/folders/v0/n6__xpds389cd0fl9q8yvg3h0000gn/T/RtmpdpIOmx/model-b2945d9a6a0.stan', line 17, column 2 to column 27)
-# Warning: Chain 1 finished unexpectedly!
-
 # The stan code appears to have a reference taxa
 # takes rho = k-1, where right now the input params. have rho = k (12)
 # drop the "other" taxa to serve as a reference
@@ -120,7 +124,7 @@ gamma = mean(gamma)
 
 # choice, remove 12 w = (12, 199, 6378)
 
-# FInley - Come back to this
+# FINLEY - Come back to this
 # reduces information by taxa (declared (1,17), found (12,1, 127)[...])
 # w <- matrix(1, nrow = 1, ncol = 1)###### getting non-posistve definite matrix , having issues with it sampeling across space
 w <- matrix(1, nrow = 3, ncol = 1) 
@@ -129,10 +133,6 @@ w <- matrix(1, nrow = 3, ncol = 1)
 # summary(rho)        # check for very small or huge values
 # summary(d_knots)    # check for zeros or Inf/NaN
 w
-
-##### POSSIBLE NEXT OPTION ################
-
-
 
 ########## RUN STAN 
 # Run the model

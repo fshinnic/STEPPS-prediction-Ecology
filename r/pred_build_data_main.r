@@ -11,6 +11,11 @@
 ##
 ## Outputs: None specific to this script. All outputs created in 
 ################################################################################
+# CHANGE WHAT LAKES TO RUN ON
+
+lake_group = "minn_nonvarve"  
+# options: "wisc_varve", "wisc_nonvarve", "minn_varve"
+
 
 # FS- working directory
 setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology")

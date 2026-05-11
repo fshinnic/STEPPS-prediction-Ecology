@@ -79,7 +79,6 @@ int  = 50 #Year interval for STEPPS model
  
 tmin = 150 #Presumably 150 years before present which matches DawsonEA2019
 
-
 # Determine how far back we are modeling. 
 if (one_time) {
   tmin = tmin + (slice-1)*int #Slice has not been defined. This will not work. 
@@ -99,7 +98,8 @@ rescale = 1e6 #Conversion factor used for rescaling the spatial grids.
 # suffix to append to figure names
 #HO - I have no idea where grid_specs comes from so I will add my own to get it to run.
 grid_specs = "test_grid_specs"
-suff    = paste(grid_specs, '_', version, sep='') 
+# suff    = paste(grid_specs, '_', version, sep='') 
+suff = paste(grid_specs, lake_group, version, sep = "_")
 
 # specify states; relict from testing
 states_pol = c('minnesota', 'wisconsin', 'michigan:north')
@@ -133,19 +133,22 @@ path_veg_data = paste0('data/veg_data_', suff_veg, '_v0.4.rdata')
 path_veg_pars = 'data/veg_pars_120knots.rdata'
 
 # ############ CHOSE POLLEN DATA SET TO USE #####################################
-
-## All pollen data sets
-# path_pollen   = 'data/sediment_ages_v1.0_varves.csv'
-
-## Only non-varve lakes of interest
-# path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
-
-## only no-varve Minnesota lakes
-# path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
- 
-## only path of varve wisconsin lakes of interest (Ruby, Dark, LP)
-path_pollen = 'data/fs_data/wisc_varve_pollen_ts.csv'
-age_model = "varve"
+# manually change in the pred_build_data_main.r
+if (lake_group == "wisc_varve") {
+  path_pollen = 'data/fs_data/wisc_varve_pollen_ts.csv'
+  age_model = "varve"
+  
+} else if (lake_group == "wisc_nonvarve") {
+  path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
+  age_model = "bacon"
+  
+} else if (lake_group == "minn_nonvarve") {
+  path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
+  age_model = "bacon"
+  
+} else {
+  stop("Unknown lake_group")
+}
 
 # ############# DEFINE AGE METHOD ########################################## 
 
@@ -178,11 +181,6 @@ veg_post = readRDS(file=path_veg_pars)
 
 # read calibration data
 cal_fit = rstan::read_stan_csv(path_cal)
-
-# ################ CHECK WITH LILY #############################################
-# CHECK WITH ONE LAKE ### Lily Lake
-# pollen_ts <- pollen_ts %>% dplyr::filter(sitename == "LilyLake")
-# lilylake_id <- pollen_ts$id
 
 
 # ################ DEFINE AGE COLLUMN TO USE  #############################################
@@ -309,38 +307,39 @@ N_pls = nrow(y_veg)
 
 # FS - created domain of uppermidwest form PLS grid centers
 states_pls <- c("wisconsin", "michigan:north","minnesota")
+# ################ DEFINE CORE LOCATIONS BY LAKE GROUP ########################
 
-# ############## KEEP Wisconsin Core Location ###########################
-# pollen_locs_wisc <- matrix(c(
-#   295730.5, 1080402,
-#   305160.3, 1063040,
-#   302421.0, 1076170,
-#   315188.8, 1087291
-# ), ncol=2, byrow=TRUE)
-# 
-# pollen_df <- as.data.frame(pollen_locs_wisc)
+if (lake_group == "wisc_varve") {
+  
+  pollen_locs <- matrix(c(
+    358152.4, 1001003,
+    356758.9, 1000213,
+    356204.7, 1001203
+  ), ncol = 2, byrow = TRUE)
+  
+} else if (lake_group == "wisc_nonvarve") {
+  
+  pollen_locs <- matrix(c(
+    295730.5, 1080402,
+    305160.3, 1063040,
+    302421.0, 1076170,
+    315188.8, 1087291
+  ), ncol = 2, byrow = TRUE)
+  
+} else if (lake_group == "minn_nonvarve") {
+  
+  pollen_locs <- matrix(c(
+    169181.33, 1165575,
+    127450.70, 1207032,
+    94360.15, 1252942
+  ), ncol = 2, byrow = TRUE)
+  
+} else {
+  stop("Unknown lake_group")
+}
 
-# ############## KEEP Wisconsin Varve Core Location ###########################
-
-pollen_locs_wisc_varve <- matrix(c(
-  358152.4, 1001003,
-  356758.9 ,1000213,
-  356204.7 ,1001203
-), ncol=2, byrow=TRUE)
-
-pollen_df <- as.data.frame(pollen_locs_wisc_varve)
-
-# ############### KEEP Minnesota Cores Location ###########################
-# pollen_locs_minn <- matrix(c(
-#   169181.33, 1165575,
-#   127450.70,  1207032,
-#   94360.15, 1252942
-# ), ncol=2, byrow=TRUE)
-# pollen_df <- as.data.frame(pollen_locs_minn)
-# 
-
-# ################ SUBSET DOMAIN ###########################
-# Use if keeping only a certain subset of lake cores
+# convert to dataframe
+pollen_df <- as.data.frame(pollen_locs)
 colnames(pollen_df) <- c("x", "y")
 
 # Subset meta to relevant states
@@ -496,50 +495,6 @@ points(centers_veg[idx_cores,'x']*rescale, centers_veg[idx_cores,'y']*rescale, c
 points(centers_pol$x*rescale, centers_pol$y*rescale, col='blue', pch=4, cex=1.4)
 #plot(us.shp, add=TRUE)
 
-
-# ############### ONLY INCLUDE Lily Lake #################
-# 
-# # Only keep Lily Lake pollen data
-# pollen_ts <- pollen_ts %>% dplyr::filter(sitename == "LilyLake")
-# lilylake_id <- pollen_ts$id
-# 
-# # Find which grid cell(s) these cores map to
-# lily_idx <- which(meta_pol$id %in% lilylake_id)
-# lily_cell <- unique(idx_cores[lily_idx])
-# lily_cell <- lily_cell[!is.na(lily_cell)]
-# 
-# # Keep only that cell in vegetation centers (domain)
-# centers_veg <- centers_veg[lily_cell, , drop = FALSE]
-# N <- nrow(centers_veg)  # should be 1
-# 
-# # Update idx_cores: all cores map to this single cell
-# idx_cores <- rep(1, N_cores)
-# 
-# # Knot coordinates = vegetation center for Lily Lake
-# knot_coords <- centers_veg
-# N_knots <- nrow(knot_coords)  # 1
-# 
-# # Recompute distance matrices for single-point domain
-# d       <- rdist(centers_veg, centers_veg); diag(d) <- 0
-# d_knots <- rdist(knot_coords, knot_coords); diag(d_knots) <- 0
-# d_inter <- rdist(centers_veg, knot_coords); d_inter[d_inter < 1e-8] <- 0
-# d_pol   <- rdist(centers_pol, centers_veg); d_pol[d_pol < 1e-8] <- 0
-# 
-# # Plot domain (should now show only Lily Lake)
-# plot(centers_veg$x * rescale,
-#      centers_veg$y * rescale,
-#      col = "blue",
-#      pch = 19,
-#      cex = 1.5,
-#      asp = 1,
-#      axes = FALSE,
-#      xlab = "X (m)",
-#      ylab = "Y (m)",
-#      main = "Domain: Lily Lake Only")
-# points(centers_pol$x * rescale, centers_pol$y * rescale, col = "red", pch = 4, cex = 2)
-# plot(st_geometry(us.shp), add = TRUE, border = "black", lwd = 0.5)
-# 
-
 # ############### ONLY INCLUDE Varve Grids #################
 
 # Only keep varve grid  pollen data
@@ -557,7 +512,7 @@ N <- nrow(centers_veg)  # should be 1
 # Update idx_cores: all cores map to this single cell
 idx_cores <- rep(1, N_cores)
 
-# Knot coordinates = vegetation center for Varve Lake
+# Knot coordinates = vegetation center for lake group
 knot_coords <- centers_veg
 N_knots <- nrow(knot_coords)  # 1
 
@@ -567,7 +522,7 @@ d_knots <- rdist(knot_coords, knot_coords); diag(d_knots) <- 0
 d_inter <- rdist(centers_veg, knot_coords); d_inter[d_inter < 1e-8] <- 0
 d_pol   <- rdist(centers_pol, centers_veg); d_pol[d_pol < 1e-8] <- 0
 
-# Plot domain (should now show only varve Lake)
+# Plot domain (should only be filtered lakes)
 plot(centers_veg$x * rescale,
      centers_veg$y * rescale,
      col = "blue",
@@ -577,11 +532,9 @@ plot(centers_veg$x * rescale,
      axes = FALSE,
      xlab = "X (m)",
      ylab = "Y (m)",
-     main = "Domain: Varve Lakes Only")
+     main = paste("Domain:", lake_group))
 points(centers_pol$x * rescale, centers_pol$y * rescale, col = "red", pch = 4, cex = 2)
 plot(st_geometry(us.shp), add = TRUE, border = "black", lwd = 0.5)
-
-# ####### END INCLUDE VARVE LAKES #################
 
 ## SAVE ENVIORNMENT THERE TO NOT RUN POLLEN AGG AGAIN ##
 # save.image("my_environment.RData")
@@ -778,7 +731,10 @@ rho = unname(rho)[1:K]
 if (kernel == 'gaussian'){ suff = paste0('G_', suff) } else if (kernel == 'pl'){suff = paste0('PL_', suff)}
 if (!draw) suff = paste0(suff, '_mean')
 
-dirName = paste0('runs/', N_knots, 'knots_', tmin, 'to', tmax, 'ybp_', suff)
+dirName = file.path(
+  "runs",
+  paste0(lake_group, "_", N_knots, "knots_", tmin, "to", tmax, "ybp_", suff)
+)
 
 if (one_time){
   dirName = paste0('runs/space_slices_', suff)
