@@ -9,11 +9,17 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+The following code finds the STEPPS grid cells that the working lakes are in. It extracts these grid cells, and pulls the proportions of each taxa present in those grid cells (also pulls SD). 
+
+Data Input
+- lakes_stepps.RData #
+
 ## Functions
 
 ```{r}
 library(ggplot2)
 library(dplyr)
+library(tidyr)
 library(ncdf4)
 ```
 
@@ -21,11 +27,20 @@ library(ncdf4)
 ## Load data
 
 ```{r}
-# og_stepps_post <- load("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/og_STEPPS_products/lakes_stepps.RData")
+library(here)
 
-mean_stepps <- nc_open("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/og_STEPPS_products/2Kyrs_Comp_Mean_Level2_v1.0.nc")
+mean_stepps <- nc_open(
+  here::here("og_STEPPS_products",
+             "2Kyrs_Comp_Mean_Level2_v1.0.nc")
+)
+
+SD_stepps <- nc_open(
+  here::here("og_STEPPS_products",
+             "2Kyrs_Comp_SD_Level2_v1.0.nc")
+)
 ```
 
+Filter the Mean Stepps Proportions to only include grid cells with lakes of interest.
 
 ```{r}
 # pull out the x, y coordinates present in the original stepps product
@@ -143,14 +158,130 @@ unique(all_df_reduced$lake_id)
 
 ```
 
+
+Filter the SD Stepps Proportions to only include grid cells with lakes of interest.
+
+```{r}
+# pull out the x, y coordinates present in the original stepps product
+x_coord <- ncvar_get(SD_stepps, "x")
+y_coord <- ncvar_get(SD_stepps, "y")
+time_vals <- ncvar_get(SD_stepps, "Time")
+
+# define a cell size (24 km in this model)
+cell_size <- 24000
+half_cell <- cell_size / 2
+
+# define cell grids borders
+grid_cells_sd <- expand.grid(
+  x_center = x_coord,
+  y_center = y_coord
+) %>%
+  mutate(
+    x_min = x_center - half_cell,
+    x_max = x_center + half_cell,
+    y_min = y_center - half_cell,
+    y_max = y_center + half_cell
+  )
+
+# list taka present
+taxa <- c("ASH", "BEECH", "BIRCH", "ELM", "HEMLOCK", "MAPLE", "OAK",
+          "OTHER.CONIFER", "OTHER.HARDWOOD", "PINE", "SPRUCE", "TAMARACK")
+
+# give column names x and y for location of pollen
+make_locs <- function(mat) {
+  as.data.frame(mat) %>%
+    setNames(c("x", "y"))
+}
+
+# define coordinates of lakes we want to extract stepps data from
+pollen_locs <- list(
+  wisc_varve = make_locs(matrix(c(
+    358152.4, 1001003,
+    356758.9, 1000213,
+    356204.7, 1001203
+  ), ncol = 2, byrow = TRUE)),
+  
+  wisc_nonvarve = make_locs(matrix(c(
+    295730.5, 1080402,
+    305160.3, 1063040,
+    302421.0, 1076170,
+    315188.8, 1087291
+  ), ncol = 2, byrow = TRUE)),
+  
+  minn_nonvarve = make_locs(matrix(c(
+    169181.33, 1165575,
+    127450.70, 1207032,
+    94360.15, 1252942
+  ), ncol = 2, byrow = TRUE))
+)
+
+# assign ids to grid cells to see what each lake falls into
+# give each lake location a different ID for not (will be reduced later)
+assign_cell_id <- function(lakes, grid, prefix) {
+  out <- lapply(seq_len(nrow(lakes)), function(i) {
+    x <- lakes$x[i]
+    y <- lakes$y[i]
+    
+    idx <- which(
+      x >= grid$x_min & x < grid$x_max &
+      y >= grid$y_min & y < grid$y_max
+    )
+    
+    grid[idx, ] %>%
+      mutate(lake_id = paste0(prefix, "_", i))
+  })
+  
+  bind_rows(out)
+}
+
+# run function
+lake_cells <- bind_rows(
+  assign_cell_id(pollen_locs$wisc_varve, grid_cells_sd, "wisc_varve"),
+  assign_cell_id(pollen_locs$wisc_nonvarve, grid_cells_sd, "wisc_nonvarve"),
+  assign_cell_id(pollen_locs$minn_nonvarve, grid_cells_sd, "minn")
+)
+
+# only keep discintint grid cells
+grid_keep_sd <- lake_cells %>%
+  distinct(x_center, y_center, lake_id)
+
+full_grid_keep <- grid_keep %>%
+  crossing(Time = time_vals)
+
+# extrac the SD values for these lakes
+extract_taxa <- function(t) {
+  vals <- ncvar_get(SD_stepps, t)
+  
+  expand.grid(
+    x_center = x_coord,
+    y_center = y_coord,
+    Time = time_vals
+  ) %>%
+    mutate(SD = as.vector(vals),
+           Taxa = t) %>%
+    inner_join(full_grid_keep, by = c("x_center", "y_center", "Time"))
+}
+
+SDs_all_sd <- bind_rows(lapply(taxa, extract_taxa))
+
+# apply the splitting function
+SDs_filtered_sd <- split(SDs_all_sd, SDs_all_sd$lake_id)
+
+# if any groups of lake fall into the same grid cell (x, y) with same SD, reduce the number of data frames
+all_df_sd <- bind_rows(SDs_filtered_sd)
+all_df_reduced_sd <- all_df_sd %>% 
+  distinct(x_center, y_center, Time, Taxa, SD, .keep_all = TRUE)
+
+# see how many unique STEPPS grid cells we have
+unique(all_df_reduced_sd$lake_id)
+
+```
 ## Plot Data
 
 ```{r}
-# plot for only the given lake
 plot_df <- all_df_reduced %>%
-  filter(lake_id == "minn_3")
+  filter(lake_id == "wisc_varve_1")
 
-# try to find order of taxa at the last time point (for legend ordering)
 label_df <- plot_df %>%
   group_by(Taxa) %>%
   filter(Time == max(Time)) %>%
@@ -159,14 +290,24 @@ label_df <- plot_df %>%
 
 taxa_order <- label_df$Taxa
 
-# assign factors to arrange legend
 plot_df <- plot_df %>%
   mutate(Taxa = factor(Taxa, levels = taxa_order))
 
-# plot STEPPS proportions over time
-ggplot((plot_df),
+plot_sd <- all_df_reduced_sd %>%
+  filter(lake_id == "wisc_varve_1")
+
+plot_df <- plot_df %>%
+  left_join(plot_sd %>% select(x_center, y_center, Time, Taxa, SD),
+            by = c("x_center", "y_center", "Time", "Taxa")) %>%
+  mutate(
+    ymin = Proportion - SD,
+    ymax = Proportion + SD
+  )
+
+ggplot(plot_df,
        aes(x = -(Time * 100), y = Proportion,
-           group = Taxa, color = Taxa)) +
+           group = Taxa, color = Taxa, fill = Taxa)) +
+  geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, color = NA) +
   geom_line(linewidth = 1) +
   xlab("Years before 1950 AD") +
   ylab("Vegetation Proportion (Out of 1.0)") +
@@ -174,6 +315,22 @@ ggplot((plot_df),
   theme_minimal() +
   labs(title = "STEPPS Original Vegetation Reconstruction") +
   theme(legend.position = "right")
+
 ```
 
+# merge SD and mean
+
+```{r}
+stepps_grid_cells <- all_df_reduced %>% 
+  left_join(all_df_reduced_sd, by = c("x_center", "y_center", "lake_id", "Taxa", "Time"))
+
+```
+
+
+# Save Data products
+```{r}
+save(stepps_grid_cells,
+     file = here::here("og_STEPPS_products",
+                       "og_stepps_product_gridcells.RData"))
+```
 
