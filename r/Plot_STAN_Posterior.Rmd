@@ -25,8 +25,11 @@ library(posterior)
 # using wight = 1
 #data_posterior <- sum_df_one
 fit_w_one_v2 <- read.csv("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs/stan_simple_varve_v2")
-# using weight = 1, and outping r_new
 data_posterior <- fit_w_one_v2
+
+# using weight = 1, and outping r_new
+fit_w_one_v4 <- read.csv("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs/stan_simple_varve_v4")
+data_posterior <- fit_w_one_v4
 
 # define look up table: 
 taxa_names <- c("ash","beech","birch","elm","hemlock","maple","oak","other.conifer","other.hardwood","pine","spruce","tamarack") 
@@ -46,20 +49,16 @@ g_long <- data_posterior %>%
     taxon_name = factor(taxa_names[k], levels = taxa_names)
   )
 
+label_df <- g_long %>%
+  group_by(taxon_name) %>%
+  filter(t == max(t)) %>%   # get last time point for each Taxa
+  ungroup() %>%
+  arrange(desc(mean))       # order by final proportion (high → low)
 
-ggplot(g_long, aes(x = -t, y = mean, color = factor(taxon_name))) +
-  geom_line(size = 1.2) +
-  geom_text_repel(
-    data = g_long %>% group_by(taxon_name) %>% slice_tail(n = 1),  # last point per taxon
-    aes(label = taxon_name),
-    nudge_x = 1.4,             # move text slightly to the right
-    direction = "y",
-    hjust = 2,
-    segment.color = NA,        
-    size = 4
-  ) +
-  labs(title = "Latent log-abundance (g)", color = "Taxon") +
-  theme(legend.position = "none") + theme_minimal()
+taxa_order <- label_df$taxon_name
+
+g_long$taxon_name <- factor(g_long$taxon_name,
+                                    levels = taxa_order)
 
 ggplot(g_long, aes(x = -t, y = mean, color = factor(taxon_name))) +
   geom_line(size = 1.2) +
@@ -99,6 +98,51 @@ ggplot(mu_t_long, aes(x = t, y = mean, color = taxon_name)) +
   theme_minimal() +
   theme(legend.position = "none")
 
+```
+
+```{r}
+
+taxa_names <- c("ASH", "BEECH", "BIRCH", "ELM", "HEMLOCK", "MAPLE", "OAK",
+           "OTHER.CONIFER", "OTHER.HARDWOOD", "PINE", "SPRUCE", "TAMARACK")
+
+r_new_long <- data_posterior %>%
+  filter(str_detect(variable, "^r_new\\[")) %>%
+  mutate(
+    time_index  = as.integer(str_extract(variable, "(?<=r_new\\[)\\d+")),
+    taxon_index = as.integer(str_extract(variable, "(?<=,)\\d+")),
+    taxon_name  = taxa_names[taxon_index]
+  )
+
+r_new_plot <- r_new_long %>% filter(time_index <= 40)
+
+label_df <- r_new_long %>%
+  filter(time_index <= 40) %>%
+  group_by(taxon_name) %>%
+  filter(time_index == max(time_index)) %>%
+  ungroup()
+
+taxa_order <- label_df %>%
+  arrange(desc(mean)) %>%
+  pull(taxon_name)
+
+r_new_plot <- r_new_long %>%
+  filter(time_index <= 40) %>%
+  mutate(taxon_name = factor(taxon_name, levels = taxa_order))
+
+
+ggplot(r_new_plot,
+       aes(x = -(time_index * 50),
+           y = mean,
+           color = taxon_name)) +
+  geom_line(linewidth = 1.2) +
+  labs(
+    title = "Temporal Trend",
+    x = "Time",
+    y = "Mean",
+    color = "Taxon"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
 ```
 
 # Reconstruct r_new; New Pollent Counts

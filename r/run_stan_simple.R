@@ -1,4 +1,5 @@
 # instal package to run .stan from Rstudio
+setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology")
 library(cmdstanr)
 #cmdstanr::install_cmdstan()
 
@@ -135,7 +136,7 @@ w
 
 ########## RUN STAN 
 # Run the model
-fit_w_one_v2 <- mod$sample(
+fit_w_one_v4 <- mod$sample(
   data = list(
     K = K,
     N = N,
@@ -166,20 +167,20 @@ fit_w_one_v2 <- mod$sample(
 
 #### check outputs!!!! #####
 
-fit_w_one_v2$draws()
-fit_w_one_v2$draws(format = "df")
-(fit_w_one_v2$summary())$variable
-fit_w_one_v2$diagnostic_summary()
+fit_w_one_v4$draws()
+fit_w_one_v4$draws(format = "df")
+(fit_w_one_v4$summary())$variable
+fit_w_one_v4$diagnostic_summary()
 
-fit_w_one_v2 <- fit_w_one_v2$summary()  
-head(fit_w_one_v2)
+fit_w_one_v4 <- fit_w_one_v4$summary()  
+head(fit_w_one_v4)
 # Check the column names
-colnames(fit_w_one_v2)
+colnames(fit_w_one_v4)
 
-View(fit_w_one_v2)
+View(fit_w_one_v4)
 
 setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs")
-write.csv(fit_w_one_v2, "stan_simple_varve_v2", row.names = FALSE)
+write.csv(fit_w_one_v4, "stan_simple_varve_v4", row.names = FALSE)
 
 
 

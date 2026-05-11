@@ -28,114 +28,152 @@ mean_stepps <- nc_open("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/og
 
 
 ```{r}
-# spatio-temporal extraction (per 12 taxa)
+# pull out the x, y coordinates present in the original stepps product
 x_coord <- ncvar_get(mean_stepps, "x")
 y_coord <- ncvar_get(mean_stepps, "y")
 time_vals <- ncvar_get(mean_stepps, "Time")
 
-# 
-taxa <- c("ASH", "BEECH", "BIRCH", "ELM", "HEMLOCK", "MAPLE", "OAK",
-           "OTHER.CONIFER", "OTHER.HARDWOOD", "PINE", "SPRUCE", "TAMARACK")
+# define a cell size (24 km in this model)
+cell_size <- 24000
+half_cell <- cell_size / 2
 
-# Extract proportions into long tibble
-df_proportions <- lapply(taxa, function(taxa) {
-  vals <- ncvar_get(mean_stepps, taxa)
+# define cell grids borders
+grid_cells <- expand.grid(
+  x_center = x_coord,
+  y_center = y_coord
+) %>%
+  mutate(
+    x_min = x_center - half_cell,
+    x_max = x_center + half_cell,
+    y_min = y_center - half_cell,
+    y_max = y_center + half_cell
+  )
+
+# list taka present
+taxa <- c("ASH", "BEECH", "BIRCH", "ELM", "HEMLOCK", "MAPLE", "OAK",
+          "OTHER.CONIFER", "OTHER.HARDWOOD", "PINE", "SPRUCE", "TAMARACK")
+
+# give column names x and y for location of pollen
+make_locs <- function(mat) {
+  as.data.frame(mat) %>%
+    setNames(c("x", "y"))
+}
+
+# define coordinates of lakes we want to extract stepps data from
+pollen_locs <- list(
+  wisc_varve = make_locs(matrix(c(
+    358152.4, 1001003,
+    356758.9, 1000213,
+    356204.7, 1001203
+  ), ncol = 2, byrow = TRUE)),
   
-  # vals has dimensions [x, y, Time]
+  wisc_nonvarve = make_locs(matrix(c(
+    295730.5, 1080402,
+    305160.3, 1063040,
+    302421.0, 1076170,
+    315188.8, 1087291
+  ), ncol = 2, byrow = TRUE)),
+  
+  minn_nonvarve = make_locs(matrix(c(
+    169181.33, 1165575,
+    127450.70, 1207032,
+    94360.15, 1252942
+  ), ncol = 2, byrow = TRUE))
+)
+
+# assign ids to grid cells to see what each lake falls into
+# give each lake location a different ID for not (will be reduced later)
+assign_cell_id <- function(lakes, grid, prefix) {
+  out <- lapply(seq_len(nrow(lakes)), function(i) {
+    x <- lakes$x[i]
+    y <- lakes$y[i]
+    
+    idx <- which(
+      x >= grid$x_min & x < grid$x_max &
+      y >= grid$y_min & y < grid$y_max
+    )
+    
+    grid[idx, ] %>%
+      mutate(lake_id = paste0(prefix, "_", i))
+  })
+  
+  bind_rows(out)
+}
+
+# run function
+lake_cells <- bind_rows(
+  assign_cell_id(pollen_locs$wisc_varve, grid_cells, "wisc_varve"),
+  assign_cell_id(pollen_locs$wisc_nonvarve, grid_cells, "wisc_nonvarve"),
+  assign_cell_id(pollen_locs$minn_nonvarve, grid_cells, "minn")
+)
+
+# only keep discintint grid cells
+grid_keep <- lake_cells %>%
+  distinct(x_center, y_center, lake_id)
+
+full_grid_keep <- grid_keep %>%
+  crossing(Time = time_vals)
+
+# extrac the proportion values for these lakes
+extract_taxa <- function(t) {
+  vals <- ncvar_get(mean_stepps, t)
+  
   expand.grid(
-    x = x_coord,
-    y = y_coord,
+    x_center = x_coord,
+    y_center = y_coord,
     Time = time_vals
   ) %>%
     mutate(Proportion = as.vector(vals),
-           Taxa = taxa)
-})
+           Taxa = t) %>%
+    inner_join(full_grid_keep, by = c("x_center", "y_center", "Time"))
+}
 
-ASH_proportions <- df_proportions[[1]]
-BEECH_proportions<- df_proportions[[2]]
-BIRCH_proportions<- df_proportions[[3]]
-ELM_proportions<- df_proportions[[4]]
-HEMLOCK_proportions <- df_proportions[[5]]
-MAPLE_proportions<- df_proportions[[6]]
-OAK_proportions<- df_proportions[[7]]
-OTHER.CONIFER_proportions <- df_proportions[[8]]
-OTHER.HARDWOOD_proportions<- df_proportions[[9]]
-PINE_proportions<- df_proportions[[10]]
-SPRUCE_proportions<- df_proportions[[11]]
-TAMARACK_proportions<- df_proportions[[12]]
+proportions_all <- bind_rows(lapply(taxa, extract_taxa))
 
-# finley is such an inefficient coder - so sorry
-proportions_all <- bind_rows(ASH_proportions, BEECH_proportions, BIRCH_proportions, ELM_proportions, HEMLOCK_proportions, MAPLE_proportions, OAK_proportions, OTHER.CONIFER_proportions, OTHER.HARDWOOD_proportions, PINE_proportions, SPRUCE_proportions, TAMARACK_proportions)
+# apply the splitting function
+proportions_filtered <- split(proportions_all, proportions_all$lake_id)
 
-# check locations present
-unique((proportions_all)$x)
-unique((proportions_all)$y)
+# if any groups of lake fall into the same grid cell (x, y) with same proportion, reduce the number of data frames
+all_df <- bind_rows(proportions_filtered)
+all_df_reduced <- all_df %>% 
+  distinct(x_center, y_center, Time, Taxa, Proportion, .keep_all = TRUE)
 
-# filter for only wisconsin varve locations
-# 
-pollen_locs_wisc_varve <- matrix(c(
-  358152.4, 1001003,
-  356758.9 ,1000213,
-  356204.7 ,1001203
-), ncol=2, byrow=TRUE)
-
-pollen_locs_wisc_varve <- as.data.frame(pollen_locs_wisc_varve)
-colnames(pollen_locs_wisc_varve) <- c("x", "y")
-
-
-###### NEED TO FILTER LOCATIONS STILL
-# get_min_dist <- function(x, y, pollen_df) {
-#   min(sqrt((pollen_df$x - x)^2 + (pollen_df$y - y)^2))
-# }
-# 
-# proportions_all <- proportions_all %>%
-#   rowwise() %>%
-#   mutate(dist_to_pollen = get_min_dist(x, y, pollen_locs_wisc_varve)) %>%
-#   ungroup()
-
-
-
-coords <- as.matrix(proportions_all[, c("x", "y")])
-pollen <- as.matrix(pollen_locs_wisc_varve)
-
-# compute distances to each pollen site
-dist_list <- lapply(1:nrow(pollen), function(i) {
-  sqrt((coords[,1] - pollen[i,1])^2 + (coords[,2] - pollen[i,2])^2)
-})
-
-# combine and take minimum distance
-proportions_all$dist_to_pollen <- do.call(pmin, dist_list)
-
-proportions_filtered <-proportions_all %>% filter(dist_to_pollen < 10000)
-
-
-# CHECK: 349000 x 1006000 = varve cells
-print(unique(proportions_filtered$x))
-print(unique(proportions_filtered$x))
+# see how many unique STEPPS grid cells we have
+unique(all_df_reduced$lake_id)
 
 ```
 
 ## Plot Data
 
 ```{r}
-label_df <- proportions_filtered %>%
+# plot for only the given lake
+plot_df <- all_df_reduced %>%
+  filter(lake_id == "minn_3")
+
+# try to find order of taxa at the last time point (for legend ordering)
+label_df <- plot_df %>%
   group_by(Taxa) %>%
-  slice_max(order_by = Time, n = 1) %>%   # last time point
-  ungroup()
+  filter(Time == max(Time)) %>%
+  ungroup() %>%
+  arrange(desc(Proportion))
 
 taxa_order <- label_df$Taxa
 
-proportions_filtered$Taxa <- factor(proportions_filtered$Taxa,
-                                    levels = taxa_order)
+# assign factors to arrange legend
+plot_df <- plot_df %>%
+  mutate(Taxa = factor(Taxa, levels = taxa_order))
 
-ggplot((proportions_filtered ), 
-       aes(x = -Time, y = Proportion, group = Taxa, color = Taxa)) +
+# plot STEPPS proportions over time
+ggplot((plot_df),
+       aes(x = -(Time * 100), y = Proportion,
+           group = Taxa, color = Taxa)) +
   geom_line(linewidth = 1) +
-  expand_limits(x = max(-proportions_filtered$Time) * 1.1) +
-  
+  xlab("Years before 1950 AD") +
+  ylab("Vegetation Proportion (Out of 1.0)") +
+  expand_limits(x = max(-plot_df$Time) * 1.1) +
   theme_minimal() +
-  theme(legend.position = "right") # i want to sort the legend by label_df  
-
+  labs(title = "STEPPS Original Vegetation Reconstruction") +
+  theme(legend.position = "right")
 ```
 
 

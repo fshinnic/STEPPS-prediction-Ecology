@@ -291,18 +291,42 @@ generated quantities {
   array[N*T] vector[K] r;
   array[N_cores*T] vector[K] r_new;
 
-  for (i in 1:N*T){
-    real sum_exp = 0;
-    for (k in 1:(K-1))
-      sum_exp += exp(g[k,i]);
+  vector[N*T] sum_exp_g;
 
-    for (k in 1:(K-1))
-      r[i,k] = exp(g[k,i]) / (1 + sum_exp);
+  // rebuild r exactly as in model
+  for (i in 1:N*T) {
+    sum_exp_g[i] = 0;
 
-    r[i,K] = 1 / (1 + sum_exp);
+    for (k in 1:W)
+      sum_exp_g[i] += exp(g[k,i]);
+
+    for (k in 1:W)
+      r[i,k] = exp(g[k,i]) / (1 + sum_exp_g[i]);
+
+    r[i,K] = 1 / (1 + sum_exp_g[i]);
   }
 
+  //  compute r_new safely
+  for (i in 1:N_cores) {
+    for (t in 1:T) {
 
+      int idx_core = (idx_cores[i]-1)*T + t;
+
+      r_new[(i-1)*T + t] = gamma * r[idx_core];
+
+      vector[K] out_sum = rep_vector(0.0, K);
+      real sum_w = 0;
+
+      for (j in 1:N)
+        if (d[idx_cores[i], j] > 0)
+          out_sum += w[i,j] * r[(j-1)*T + t];
+
+      sum_w = sum(out_sum);
+
+      if (sum_w > 0)
+        r_new[(i-1)*T + t] += (1 - gamma) * out_sum / sum_w;
+    }
+  }
 }
 
 
