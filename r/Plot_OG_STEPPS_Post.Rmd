@@ -14,6 +14,9 @@ The following code finds the STEPPS grid cells that the working lakes are in. It
 Data Input
 - lakes_stepps.RData #
 
+Data Output
+- og_50yr_stepps_product_gridcells.RData # in the og_STEPPS_Products file (temporal average)
+- og_stepps_product_gridcells # in the og_STEPPS_Products files
 ## Functions
 
 ```{r}
@@ -40,7 +43,7 @@ SD_stepps <- nc_open(
 )
 ```
 
-Filter the Mean Stepps Proportions to only include grid cells with lakes of interest.
+Filter the Mean STEPPS Proportions to only include grid cells with lakes of interest.
 
 ```{r}
 # pull out the x, y coordinates present in the original stepps product
@@ -119,7 +122,7 @@ assign_cell_id <- function(lakes, grid, prefix) {
 lake_cells <- bind_rows(
   assign_cell_id(pollen_locs$wisc_varve, grid_cells, "wisc_varve"),
   assign_cell_id(pollen_locs$wisc_nonvarve, grid_cells, "wisc_nonvarve"),
-  assign_cell_id(pollen_locs$minn_nonvarve, grid_cells, "minn")
+  assign_cell_id(pollen_locs$minn_nonvarve, grid_cells, "minn_nonvarve")
 )
 
 # only keep discintint grid cells
@@ -318,6 +321,7 @@ ggplot(plot_df,
 
 ```
 
+
 # merge SD and mean
 
 ```{r}
@@ -326,11 +330,68 @@ stepps_grid_cells <- all_df_reduced %>%
 
 ```
 
+# now average the mean and SD into 50 time increimdents
+
+```{r}
+colnames(stepps_grid_cells)
+# "x_center"   "y_center"   "Time"       "Proportion" "Taxa"       "lake_id"    "SD" 
+
+stepps_grid_cells_50yr <- stepps_grid_cells %>%
+  mutate(year = Time * 100) %>% 
+  mutate(time_bin = ntile(Time, 50)) %>%
+  group_by(x_center, y_center, lake_id, Taxa, time_bin) %>%
+  summarise(
+    Proportion = mean(Proportion, na.rm = TRUE),
+    SD   = sqrt(mean(SD^2, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
+
+label_df <- stepps_grid_cells_50yr %>%
+  group_by(Taxa) %>%
+  filter(time_bin == max(time_bin)) %>%
+  ungroup() %>%
+  arrange(desc(Proportion))
+
+plot_df <- stepps_grid_cells_50yr %>%
+  filter(lake_id == "wisc_varve_1") %>%
+  mutate(
+    year = time_bin * 100,
+    ymin = Proportion - SD,
+    ymax = Proportion + SD
+  )
+
+taxa_order <- plot_df %>%
+  group_by(Taxa) %>%
+  filter(time_bin == max(time_bin)) %>%
+  ungroup() %>%
+  arrange(desc(Proportion)) %>%
+  pull(Taxa)
+
+plot_df <- plot_df %>%
+  mutate(Taxa = factor(Taxa, levels = taxa_order))
+
+ggplot(plot_df,
+       aes(x = -year, y = Proportion,
+           group = Taxa, color = Taxa, fill = Taxa)) +
+  geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, color = NA) +
+  geom_line(linewidth = 1) +
+  xlab("Years before 1950 AD") +
+  ylab("Vegetation Proportion (Out of 1.0)") +
+  expand_limits(x = max(-plot_df$year) * 1.1) +
+  theme_minimal() +
+  labs(title = "STEPPS Original Vegetation Reconstruction") +
+  theme(legend.position = "right")
+```
 
 # Save Data products
 ```{r}
 save(stepps_grid_cells,
      file = here::here("og_STEPPS_products",
                        "og_stepps_product_gridcells.RData"))
+
+save(stepps_grid_cells_50yr,
+     file = here::here("og_STEPPS_products",
+                       "og_50yr_stepps_product_gridcells.RData"))
 ```
 

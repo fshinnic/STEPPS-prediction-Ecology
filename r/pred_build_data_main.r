@@ -9,13 +9,16 @@
 ##
 ## Inputs: None. It is just setting run parameters.
 ##
-## Outputs: None specific to this script. All outputs created in 
-################################################################################
+## Outputs: None specific to this script. All outputs created in Pred_build_data.R
+
+
+################################IMPORANT ################################################
 # CHANGE WHAT LAKES TO RUN ON
-
-lake_group = "minn_nonvarve"  
-# options: "wisc_varve", "wisc_nonvarve", "minn_varve"
-
+lake_group = "minn_nonvarve_3"  
+# lake group options: "wisc_varve", "wisc_nonvarve", "minn_varve"
+# single lake optoins: "wisc_nonvarve_1" "wisc_nonvarve_2" "wisc_nonvarve_3", "wisc_nonvarve_4"
+# minn_nonvarve_1, minn_nonvarve_2, minn_nonvarve_3
+################################################################################
 
 # FS- working directory
 setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology")

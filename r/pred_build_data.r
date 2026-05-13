@@ -14,7 +14,7 @@
 ########################## LOAD LIBRARIES + HELPER FUNCTIONS ###################
 library(fields)
 library(rstan)
-library(sp)
+library(sp) 
 #library(rgdal)
 library(ggplot2)
 library(mvtnorm)
@@ -133,16 +133,22 @@ path_veg_data = paste0('data/veg_data_', suff_veg, '_v0.4.rdata')
 path_veg_pars = 'data/veg_pars_120knots.rdata'
 
 # ############ CHOSE POLLEN DATA SET TO USE #####################################
+
 # manually change in the pred_build_data_main.r
 if (lake_group == "wisc_varve") {
   path_pollen = 'data/fs_data/wisc_varve_pollen_ts.csv'
   age_model = "varve"
   
-} else if (lake_group == "wisc_nonvarve") {
+} else if (lake_group %in% c("wisc_nonvarve", "wisc_nonvarve_1", 
+                             "wisc_nonvarve_2", "wisc_nonvarve_3", 
+                             "wisc_nonvarve_4")) {
+  
   path_pollen = 'data/fs_data/wisc_nonvarve_pollen_ts.csv'
   age_model = "bacon"
   
-} else if (lake_group == "minn_nonvarve") {
+} else if (lake_group %in% c("minn_nonvarve", "minn_nonvarve_1", 
+                             "minn_nonvarve_2", "minn_nonvarve_3")) {
+  
   path_pollen = 'data/fs_data/minnesota_nonvarve_pollen_ts.csv'
   age_model = "bacon"
   
@@ -190,23 +196,32 @@ pol_ids = data.frame(id=unique(pollen_ts$id), stat_id=seq(1, length(unique(polle
 
 # if draw=TRUE then replace mean age_bacon with draw age_bacon
 if (draw) {
-  all_files   = list.files(path_age_samples)
-  all_drawRDS = all_files[grep('draw', all_files)]
   
-  # FS - randomply choses one draw index
-  drawRDS     = all_drawRDS[sample(seq(1, length(all_drawRDS)), 1)]   # random sample from available posterior age draws
+  all_files   <- list.files(path_age_samples)
+  all_drawRDS <- all_files[grep("draw", all_files)]
   
-  age_sample   = readRDS(file.path(path_age_samples, drawRDS))
-  # replace age_bacon with the draw
-  if (bchron){
-    pollen_ts$age_bchron = age_sample
-    # if varve lakes are used
-  }else if (varve_dates && !is.na(pollen_ts$year)){
-    pollen_ts$Year = Year
+  # randomly choose one draw index
+  drawRDS     <- sample(all_drawRDS, 1)
+  
+  age_sample  <- readRDS(file.path(path_age_samples, drawRDS))
+  
+  # replace age model with draw
+  if (bchron) {
+    
+    pollen_ts$age_bchron <- age_sample
+    
+  } else if (varve_dates && "year" %in% names(pollen_ts) && any(!is.na(pollen_ts$year))) {
+    
+    pollen_ts$Year <- pollen_ts$year
+    
   } else {
-    pollen_ts$age_bacon  = age_sample  
+    
+    pollen_ts$age_bacon <- age_sample
   }
 }
+
+# rror in if (varve_dates && !is.na(pollen_ts$year)) { : 
+#missing value where TRUE/FALSE needed
 
 if (bchron){
   pollen_ts = pollen_ts[!is.na(pollen_ts$age_bchron),]
@@ -334,24 +349,86 @@ if (lake_group == "wisc_varve") {
     94360.15, 1252942
   ), ncol = 2, byrow = TRUE)
   
+} else if (lake_group == "wisc_nonvarve_1") {
+  
+  #lonestarLake
+  pollen_locs <- matrix(c(
+    295730.5, 1080402
+  ), ncol = 2, byrow = TRUE)
+  
+} else if (lake_group == "wisc_nonvarve_2") {
+  #HellHoleLake
+  pollen_locs <- matrix(c(
+    305160.3, 1063040
+  ), ncol = 2, byrow = TRUE)
+
+} else if (lake_group == "wisc_nonvarve_3") {
+  
+  #LilyLake
+  pollen_locs <- matrix(c(
+    302421.0, 1076170
+  ), ncol = 2, byrow = TRUE)
+  
+} else if (lake_group == "wisc_nonvarve_4") {
+  
+  # FerryLake
+  pollen_locs <- matrix(c(
+    315188.8, 1087291 
+  ), ncol = 2, byrow = TRUE)
+  
+} else if (lake_group == "minn_nonvarve_1") {
+  # HostageLake
+  pollen_locs <- matrix(c(
+    169181.33, 1165575
+  ), ncol = 2, byrow = TRUE)
+
+} else if (lake_group == "minn_nonvarve_2") {
+  # MudLake
+  pollen_locs <- matrix(c(
+    127450.70, 1207032
+  ), ncol = 2, byrow = TRUE)
+  
+} else if (lake_group == "minn_nonvarve_3") {
+  # OzawindibLake
+  pollen_locs <- matrix(c(
+    94360.15, 1252942
+  ), ncol = 2, byrow = TRUE)
+  
 } else {
   stop("Unknown lake_group")
 }
 
-# convert to dataframe
-pollen_df <- as.data.frame(pollen_locs)
-colnames(pollen_df) <- c("x", "y")
+
 
 # Subset meta to relevant states
 meta_sub <- meta %>% dplyr::filter(state2 %in% states_pls)
 
-# Calculate distance from each meta point to all pollen sites
-dist_matrix <- as.matrix(dist(rbind(meta_sub[,c("x","y")], pollen_df)))
-dist_matrix <- dist_matrix[1:nrow(meta_sub), (nrow(meta_sub)+1):nrow(dist_matrix)]
-
-# Keep points within 10 km of any pollen site
-domain <- meta_sub[rowSums(dist_matrix <= 4000) > 0, c("x","y")]
-coarse_centers = domain[,1:2]
+# convert to dataframe
+if (lake_group %in% c("wisc_nonvarve_1", "wisc_nonvarve_2" ,"wisc_nonvarve_3", "wisc_nonvarve_4",
+                      "minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3")){
+  
+  # distances from all grid cells to pollen location
+  dists <- rdist(meta_sub[, c("x","y")], pollen_locs)
+  
+  # find closest grid cell
+  idx <- which.min(dists)
+  
+  domain <- meta_sub[idx, c("x","y"), drop = FALSE]
+  coarse_centers <- domain
+  
+} else {
+  pollen_df <- as.data.frame(pollen_locs)
+  colnames(pollen_df) <- c("x", "y")
+  
+  
+  # Calculate distance from each meta point to all pollen sites
+  dist_matrix <- as.matrix(dist(rbind(meta_sub[,c("x","y")], pollen_df)))
+  dist_matrix <- dist_matrix[1:nrow(meta_sub), (nrow(meta_sub)+1):nrow(dist_matrix), drop = FALSE ]
+  
+  # Keep points within 10 km of any pollen site
+  domain <- meta_sub[rowSums(dist_matrix <= 8000) > 0, c("x","y")]
+  coarse_centers = domain[,1:2]
+}
 
 # ############## Keep all cores ################# 
 # domain <- meta[meta$state2 %in% states_pls, c("x", "y")]
@@ -386,6 +463,7 @@ yhi = max(centers_veg$y)
 # set tamarack to 0 at tamarack creek; see Dawson et al. QSR 2016
 pollen_ts[pollen_ts$id == 2624, 'TAMARACK'] = rep(0, sum(pollen_ts$id == 2624))
 
+
 saveRDS(pollen_ts, file='data/pollen_ts.RDS')
 
 # FS - only keep sites in "minnesota"      "wisconsin"      "michigan:north"
@@ -394,9 +472,40 @@ pollen_ts1 = pollen_ts[which(pollen_ts$state %in% states_pol),]
 # FS - had to edit this function to use sf instead (rerun pollen_to_albers.r file)
 # reproject pollen coords from lat long to Albers
 pollen_ts2 = pollen_to_albers(pollen_ts1)
+
+
+# common and site mane
+lake_lookup <- data.frame(
+  lake_group_1 = c(
+    "wisc_nonvarve_1", "wisc_nonvarve_2", "wisc_nonvarve_3", "wisc_nonvarve_4",
+    "minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3"
+  ),
+  sitename = c(
+    "LonestarLake", "HellHoleLake", "LilyLake", "FerryLake",
+    "HostageLake", "MudLake", "OzawindibLake"
+  )
+)
+
+if (lake_group %in% c("wisc_nonvarve_1", "wisc_nonvarve_2", "wisc_nonvarve_3", "wisc_nonvarve_4",
+    "minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3")) {# common and sitename
+  # see working lake name
+  lake_name <- lake_lookup %>%
+    dplyr::filter(lake_group_1 == lake_group) %>%
+    dplyr::pull(sitename) %>%
+    unique()
+  
+  if (length(lake_name) != 1) stop("Lake group does not map to exactly one sitename")
+  
+  # filter to include working lake
+  pollen_ts2 <- pollen_ts2 %>%
+    dplyr::filter(sitename %in% lake_name)}
+    
+
 # FS - location of pollen
 pollen_locs = cbind(pollen_ts2$x, pollen_ts2$y)
 unique(pollen_locs)
+
+
 
 # FS - checks that the pollen sitees are within the vegetation domain
 plot(centers_veg$x, centers_veg$y, col='green', pch=19, main='Vegetation vs Pollen')
@@ -725,6 +834,12 @@ rho = unname(rho)[1:K]
 #   N_p = 1
 # }
 
+###### DIAGNOSTIC
+cat("N:", N, "\n")
+cat("N_cores:", N_cores, "\n")
+cat("nrow(pollen_ts3):", nrow(pollen_ts3), "\n")
+cat("nrow(centers_veg):", nrow(centers_veg), "\n")
+
 ##########################################################################################################################
 ## save the data; rdata more efficient, use for processing
 ##########################################################################################################################
@@ -744,7 +859,7 @@ if (AR){
   dirName = paste0(dirName, '_ar')
 }
 if (!(file.exists(dirName))) {
-  dir.create(dirName)
+  dir.create(dirName, recursive = TRUE, showWarnings = FALSE)
 }
 
 
@@ -762,23 +877,36 @@ if (one_time){
 
 fname = file.path(dirName, subDir, 'input')
 
+# check naming files worked
+print(getwd())
+print(dirName)
+print(file.path(dirName, subDir))
+
+# print error statement if saving failes
+tryCatch({
+  save(K, N, T, N_cores, N_knots, res,
+       gamma, phi, rho, eta,
+       y, 
+       idx_cores, 
+       d_knots, d_inter, w, #d_pol, 
+       d, 
+       lag,
+       P, N_p, 
+       meta_pol, meta_pol_all,
+       # sum_w_pot, 
+       #pollen_check, # FS - Doesn't exist still...
+       knot_coords,
+       centers_pls, centers_veg, centers_pol, taxa, ages, y_veg, N_pls,
+       file=paste0(fname, '.rdata'))
+  print("SAVE SUCCESS")
+}, error=function(e){
+  print("SAVE FAILED")
+  print(e)
+})
 
 # saves parameters
 # note that w is column-major 
-save(K, N, T, N_cores, N_knots, res,
-     gamma, phi, rho, eta,
-     y, 
-     idx_cores, 
-     d_knots, d_inter, w, #d_pol, 
-     d, 
-     lag,
-     P, N_p, 
-     meta_pol, meta_pol_all,
-     # sum_w_pot, 
-     #pollen_check, # FS - Doesn't exist still...
-     knot_coords,
-     centers_pls, centers_veg, centers_pol, taxa, ages, y_veg, N_pls,
-     file=paste0(fname, '.rdata'))
+
 
 
 # convert to row-major (it seems like stepps only wants a two-dimensional matrix)
@@ -789,17 +917,30 @@ if (KW){
   w = array(w_new, c(K, N_cores, N))  
 }
 
-# dump file can be read by stan!!
-dump(c('K', 'N', 'T', 'N_cores', 'N_knots', 'res',
-       'gamma', 'phi', 'rho', 'eta',
-       'y', 
-       'idx_cores', 
-       'd_knots', 'd_inter', 'w', #'d_pol', 
-       'd', 
-       'lag'
-      # 'sum_w_pot'
-       ),
-     file=paste0(fname, '.dump'))
+
+# print error statement if saving failes
+tryCatch({
+  # dump file can be read by stan!!
+  dump(c('K', 'N', 'T', 'N_cores', 'N_knots', 'res',
+         'gamma', 'phi', 'rho', 'eta',
+         'y', 
+         'idx_cores', 
+         'd_knots', 'd_inter', 'w', #'d_pol', 
+         'd', 
+         'lag'
+         # 'sum_w_pot'
+  ),
+  file=paste0(fname, '.dump'))
+  print("SAVE SUCCESS")
+}, error=function(e){
+  print("SAVE FAILED")
+  print(e)
+})
+
+
+
+
+print("First Round of Saving")
 
 ##########################################################################################################################
 ## write meta file with paths
@@ -822,4 +963,5 @@ if (dr==1){
   close(con=conn)
 }
 
-
+print("Second Round of Saving")
+print(normalizePath(paste0(fname, ".rdata")))

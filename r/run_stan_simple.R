@@ -40,26 +40,39 @@ cmdstanr::cmdstan_version()
 
 ############## input files #################
 
-# FS chosen files (created in pred_build_data_main.r calling of pred_build_data.r)
-# fname : "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar/run1/input"
-# dirName = "runs/1knots_150to2150ybp_PL_test_grid_specs_v2.4_ar"
-# subDir = "run1"
-# fname <- file.path(dirName, subDir, 'input')  # same as used when saving
-# rdata_file <- paste0(fname, '.rdata')
-# 
-# # Load the file
-# load(rdata_file)
-
 # MANUALLY CHANGE
-lake_group = "wisc_varve"
+lake_group = "wisc_nonvarve_1"
 # options: "minn_nonvarve", "wisc_varve", "wisc_nonvarve"
+# single lake optoins: "wisc_nonvarve_1" "wisc_nonvarve_2" "wisc_nonvarve_3", "wisc_nonvarve_4"
+# minn_nonvarve_1, minn_nonvarve_2, minn_nonvarve_3
 
 # load in lake group working with:
 if (lake_group == "wisc_varve") {
   load("runs/wisc_varve_1knots_150to2150ybp_PL_test_grid_specs_wisc_varve_v2.4_ar/run1/input.rdata")
   
-} else if (lake_group == "wisc_nonvarve") {
+} else if (lake_group == "wisc_nonvarve"){
   load("runs/wisc_nonvarve_4knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_v2.4_ar/run1/input.rdata")
+
+} else if (lake_group == "wisc_nonvarve_1"){
+  load("runs/wisc_nonvarve_1_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_1_v2.4_ar/run1/input.rdata")
+
+} else if (lake_group == "wisc_nonvarve_2"){
+  load("runs/wisc_nonvarve_2_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_2_v2.4_ar/run1/input.rdata")
+
+  } else if (lake_group == "wisc_nonvarve_3"){
+  load("runs/wisc_nonvarve_3_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_3_v2.4_ar/run1/input.rdata")
+
+} else if (lake_group == "minn_nonvarve_1"){
+  load("runs/minn_nonvarve_1_1knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_1_v2.4_ar/run1/input.rdata")
+
+} else if (lake_group == "minn_nonvarve_2"){
+    load("runs/minn_nonvarve_2_1knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_2_v2.4_ar/run1/input.rdata")
+
+} else if (lake_group == "minn_nonvarve_3"){
+  load("runs/minn_nonvarve_3_1knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_3_v2.4_ar/run1/input.rdata")
+  
+} else if (lake_group == "wisc_nonvarve_4"){
+  load("runs/wisc_nonvarve_4_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_4_v2.4_ar/run1/input.rdata")
   
 } else if (lake_group == "minn_nonvarve") {
   load("runs/minn_nonvarve_3knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_v2.4_ar/run1/input.rdata")
@@ -67,6 +80,28 @@ if (lake_group == "wisc_varve") {
 } else {
   stop("Unknown lake_group value")
 }
+
+# HAVEN"T YET DEAALT WITH DIFFERENT GRID CELLS
+
+
+###### LOAD THE ORIGINAL STEPPS DATA PRODUCT
+# GOAL - this data product is used to constraint the other data process
+# temporal, with both mean and SD at 50 year time intervals
+# want to use bayesian model to weight using SD as uncertainty
+
+load("og_STEPPS_products/og_stepps_product_gridcells.RData")
+load("og_STEPPS_products/og_50yr_stepps_product_gridcells.RData")
+
+
+stepps_grid_cells_filtered <- stepps_grid_cells %>% filter(
+  lake_id == lake_group
+)
+
+stepps_grid_cells_50yr_filtered <- stepps_grid_cells_50yr %>% filter(
+  lake_id == lake_group
+)
+
+
 ####### input parameters #######
 
 # K, N, T, N_cores, N_knots, res, gamma, phi, rho, eta, y, idx_cores, 
@@ -136,7 +171,7 @@ w
 
 ########## RUN STAN 
 # Run the model
-fit_w_one_v4 <- mod$sample(
+fit_wisc_nonvarve <- mod$sample(
   data = list(
     K = K,
     N = N,
@@ -167,20 +202,19 @@ fit_w_one_v4 <- mod$sample(
 
 #### check outputs!!!! #####
 
-fit_w_one_v4$draws()
-fit_w_one_v4$draws(format = "df")
-(fit_w_one_v4$summary())$variable
-fit_w_one_v4$diagnostic_summary()
+fit_wisc_nonvarve$draws()
+fit_wisc_nonvarve$draws(format = "df")
+(fit_wisc_nonvarve$summary())$variable
+fit_wisc_nonvarve$diagnostic_summary()
 
-fit_w_one_v4 <- fit_w_one_v4$summary()  
-head(fit_w_one_v4)
+fit_wisc_nonvarve_sum <- fit_wisc_nonvarve$summary()  
+head(fit_wisc_nonvarve_sum)
 # Check the column names
-colnames(fit_w_one_v4)
+colnames(fit_wisc_nonvarve_sum)
 
-View(fit_w_one_v4)
 
 setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs")
-write.csv(fit_w_one_v4, "stan_simple_varve_v4", row.names = FALSE)
+write.csv(fit_wisc_nonvarve_sum, "fit_wisc_nonvarve_sum", row.names = FALSE)
 
 
 
