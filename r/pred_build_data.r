@@ -1,6 +1,12 @@
 ########################### FILE INFORMATION ###################################
 ## This file will do the pre-processing, of input data and running of the STEPPS
-## model (probably)
+## model. It aggregates pollen from intputed coresif they are in the same STEPPS
+## grid cell. It also aggregates pollen into time bins. It computes weighting functions
+## and other parameters required for STEPPS
+##
+## USER CONTROLS:
+## - Can change temporal binning (in chunck TIME STEP SIZE) - currently 50 or 100 yrs
+## - Can change lake groups running with (change lake_group in pred_build_data_main.r)
 ##
 ## Other Scripts called: pred_helper_functions loaded in as functions. 
 ##
@@ -9,8 +15,8 @@
 ## Inputs: data/assign_HW_CON.csv
 ##          
 ##
-## Outputs: 
-##
+## Outputs: TEPPS-prediction-Ecology/runs
+## 
 ########################## LOAD LIBRARIES + HELPER FUNCTIONS ###################
 library(fields)
 library(rstan)
@@ -90,7 +96,7 @@ if (one_time) {
 
 ############################# DEFINE STATES AND TAXA ###########################
 
-# ############################ SCALING ###########################
+# ############################ SCALING #########################################
 
 # rescale
 rescale = 1e6 #Conversion factor used for rescaling the spatial grids. 
@@ -117,7 +123,7 @@ taxa_sub = toupper(c('oak', 'pine', 'maple', 'birch', 'tamarack', 'beech', 'elm'
 K = as.integer(length(taxa_sub) + 1)
 W = K-1 
 
-##################PATTH and FILE NAMES TO META FILES ########################################################################################################
+##################PATTH and FILE NAMES TO META FILES ############################
 
 suff_veg = paste0('12taxa_6341cells_', nknots, 'knots') #Used to find the correct vegetation data. 
 
@@ -133,6 +139,8 @@ path_veg_data = paste0('data/veg_data_', suff_veg, '_v0.4.rdata')
 path_veg_pars = 'data/veg_pars_120knots.rdata'
 
 # ############ CHOSE POLLEN DATA SET TO USE #####################################
+# the pollen for each lake group is aggregated, but ID with a sitename collumn
+# load in the pollen for the given lake by its lake group
 
 # manually change in the pred_build_data_main.r
 if (lake_group == "wisc_varve") {
@@ -350,55 +358,29 @@ if (lake_group == "wisc_varve") {
   ), ncol = 2, byrow = TRUE)
   
 } else if (lake_group == "wisc_nonvarve_1") {
-  
   #lonestarLake
-  pollen_locs <- matrix(c(
-    295730.5, 1080402
-  ), ncol = 2, byrow = TRUE)
-  
+  pollen_locs <- matrix(c(295730.5, 1080402), ncol = 2, byrow = TRUE)
 } else if (lake_group == "wisc_nonvarve_2") {
   #HellHoleLake
-  pollen_locs <- matrix(c(
-    305160.3, 1063040
-  ), ncol = 2, byrow = TRUE)
-
+  pollen_locs <- matrix(c(305160.3, 1063040), ncol = 2, byrow = TRUE)
 } else if (lake_group == "wisc_nonvarve_3") {
-  
   #LilyLake
-  pollen_locs <- matrix(c(
-    302421.0, 1076170
-  ), ncol = 2, byrow = TRUE)
-  
+  pollen_locs <- matrix(c( 302421.0, 1076170), ncol = 2, byrow = TRUE)
 } else if (lake_group == "wisc_nonvarve_4") {
-  
   # FerryLake
-  pollen_locs <- matrix(c(
-    315188.8, 1087291 
-  ), ncol = 2, byrow = TRUE)
-  
+  pollen_locs <- matrix(c(315188.8, 1087291 ), ncol = 2, byrow = TRUE)
 } else if (lake_group == "minn_nonvarve_1") {
   # HostageLake
-  pollen_locs <- matrix(c(
-    169181.33, 1165575
-  ), ncol = 2, byrow = TRUE)
-
+  pollen_locs <- matrix(c(169181.33, 1165575), ncol = 2, byrow = TRUE)
 } else if (lake_group == "minn_nonvarve_2") {
   # MudLake
-  pollen_locs <- matrix(c(
-    127450.70, 1207032
-  ), ncol = 2, byrow = TRUE)
-  
+  pollen_locs <- matrix(c(127450.70, 1207032), ncol = 2, byrow = TRUE)
 } else if (lake_group == "minn_nonvarve_3") {
   # OzawindibLake
-  pollen_locs <- matrix(c(
-    94360.15, 1252942
-  ), ncol = 2, byrow = TRUE)
-  
+  pollen_locs <- matrix(c(94360.15, 1252942), ncol = 2, byrow = TRUE)
 } else {
   stop("Unknown lake_group")
 }
-
-
 
 # Subset meta to relevant states
 meta_sub <- meta %>% dplyr::filter(state2 %in% states_pls)
@@ -410,7 +392,7 @@ if (lake_group %in% c("wisc_nonvarve_1", "wisc_nonvarve_2" ,"wisc_nonvarve_3", "
   # distances from all grid cells to pollen location
   dists <- rdist(meta_sub[, c("x","y")], pollen_locs)
   
-  # find closest grid cell
+  # find closest grid cell (since only working with one lake)
   idx <- which.min(dists)
   
   domain <- meta_sub[idx, c("x","y"), drop = FALSE]
@@ -419,7 +401,6 @@ if (lake_group %in% c("wisc_nonvarve_1", "wisc_nonvarve_2" ,"wisc_nonvarve_3", "
 } else {
   pollen_df <- as.data.frame(pollen_locs)
   colnames(pollen_df) <- c("x", "y")
-  
   
   # Calculate distance from each meta point to all pollen sites
   dist_matrix <- as.matrix(dist(rbind(meta_sub[,c("x","y")], pollen_df)))
@@ -486,6 +467,7 @@ lake_lookup <- data.frame(
   )
 )
 
+# filter to only keep the locations with the given lakes
 if (lake_group %in% c("wisc_nonvarve_1", "wisc_nonvarve_2", "wisc_nonvarve_3", "wisc_nonvarve_4",
     "minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3")) {# common and sitename
   # see working lake name
@@ -505,8 +487,6 @@ if (lake_group %in% c("wisc_nonvarve_1", "wisc_nonvarve_2", "wisc_nonvarve_3", "
 pollen_locs = cbind(pollen_ts2$x, pollen_ts2$y)
 unique(pollen_locs)
 
-
-
 # FS - checks that the pollen sitees are within the vegetation domain
 plot(centers_veg$x, centers_veg$y, col='green', pch=19, main='Vegetation vs Pollen')
 points(pollen_locs[,1], pollen_locs[,2], col='red', pch=19)
@@ -517,7 +497,6 @@ dists <- dist(pollen_loc_unq) / 1000
 dists
 max(dists)
 
-# FS - FIX ME - currently no matches ie no cores in the domain
 #pollen_int  = cores_near_domain(pollen_locs, centers_veg, cell_width = res*8000/rescale)
 cell_width_value <- 8000   #  FS - changed!!!!
 pollen_int <- cores_near_domain(pollen_locs, centers_veg, cell_width = cell_width_value)
@@ -653,7 +632,7 @@ plot(st_geometry(us.shp), add = TRUE, border = "black", lwd = 0.5)
 # FS - pollen check doesn't exist
 # idx_cores_all <- build_idx_cores(cbind(pollen_check$x, pollen_check$y), centers_veg, N_cores=nrow(pollen_check))
 
-# ################## BUILD DISTANCE MATRICIES #######################################################################################################
+# ################## BUILD DISTANCE MATRICIES ##################################
 
 # matrix between all possible begetation squares
 d = rdist(centers_veg, centers_veg)
@@ -670,7 +649,7 @@ d_pol[which(d_pol<1e-8)]=0
 
 N_knots = nrow(knot_coords)
 
-# ############################### PULL CALIRBATION PARAMETERS ##########################################################################################
+# ############################### PULL CALIRBATION PARAMETERS ###################
 
 # Weight taxa dispersion differentially
 KW     = FALSE
@@ -740,7 +719,6 @@ if (kernel=='pl'){ # Power Law is true
   }
 }
 
-
 # FS - changed since runs appears to have multiple layers
 # create the weighting matrix for pollen dispersion for each of the 12 taxa groups
 
@@ -762,7 +740,7 @@ if (kernel == "pl" & N == 1){
   w <- array(1, dim = c(K, N_cores, N))
 }
 
-############ CALCULATE DISTANCES ###################################################################################
+############ CALCULATE DISTANCES ################################################
 # calculate potential d
 # used to determine C normalizing constant in the non-local contribution term
 
@@ -776,9 +754,9 @@ d_pot = unname(as.matrix(count(data.frame(d_pot))))
 
 N_pot     = nrow(d_pot)
 
-#####################################################################################
+#################################################################################
 # recompute gamma; needed to account for change in resolution from base res
-#####################################################################################
+################################################################################
 
 # FS - START here
 # FS - they made the resolution coarses, but d_hood doesn't exist
@@ -788,9 +766,9 @@ w_coarse  = build_sumw_pot(cal_post, K, N_pot, d_pot, runs)
 # FS - This is only for the gaussian since it requires psi
 # gamma_new = recompute_gamma(w_coarse, sum_w_pot, gamma)
 
-#####################################################################################
+################################################################################
 # veg run pars
-#####################################################################################
+################################################################################
 # phi, gamma, mu_gamma, log_a, a, log_lik
 par_names = sapply(strsplit(colnames(veg_post), '\\.'), function(x) x[[1]])
 
