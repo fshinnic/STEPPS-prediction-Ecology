@@ -336,62 +336,148 @@ stepps_grid_cells <- all_df_reduced %>%
 colnames(stepps_grid_cells)
 # "x_center"   "y_center"   "Time"       "Proportion" "Taxa"       "lake_id"    "SD" 
 
-stepps_grid_cells_50yr <- stepps_grid_cells %>%
-  mutate(year = Time * 100) %>% 
-  mutate(time_bin = ntile(Time, 50)) %>%
-  group_by(x_center, y_center, lake_id, Taxa, time_bin) %>%
-  summarise(
-    Proportion = mean(Proportion, na.rm = TRUE),
-    SD   = sqrt(mean(SD^2, na.rm = TRUE)),
-    .groups = "drop"
-  )
+# find the average of proprtion and  sqrt(mean(SD^2))
+# between two adjactent years (should be seperated by 100)
+# make that average a new time that is halfway between the two time intervals
+mid_point_years <- stepps_grid_cells %>%
+  mutate(year = Time * 100) %>%
+  arrange(x_center, y_center, lake_id, Taxa, year) %>%
+  group_by(x_center, y_center, lake_id, Taxa) %>%
+  mutate(
+    year_next = lead(year),
+    prop_next = lead(Proportion),
+    sd_next   = lead(SD)
+  ) %>%
+  filter(!is.na(year_next) & (year_next - year == 100)) %>%  
+  transmute(
+    x_center, y_center, lake_id, Taxa,
+    year = (year + year_next) / 2,
+    Proportion = (Proportion + prop_next) / 2,
+    SD = sqrt((SD^2 + sd_next^2) / 2)
+  ) %>%
+  ungroup()
+  
+original <- stepps_grid_cells %>%
+  mutate(year = Time * 100) %>%
+  select(x_center, y_center, lake_id, Taxa, year, Proportion, SD)
+
+# combine + sort
+stepps_grid_cells_50yr <- bind_rows(original, mid_point_years) %>%
+  arrange(x_center, y_center, lake_id, Taxa, year)
 
 
 label_df <- stepps_grid_cells_50yr %>%
   group_by(Taxa) %>%
-  filter(time_bin == max(time_bin)) %>%
+  filter(year == max(year)) %>%
   ungroup() %>%
   arrange(desc(Proportion))
 
-plot_df <- stepps_grid_cells_50yr %>%
-  filter(lake_id == "wisc_varve_1") %>%
+
+# lake group options: "wisc_varve", "wisc_nonvarve", "minn_varve"
+# single lake optoins: "wisc_nonvarve_1" "wisc_nonvarve_2" "wisc_nonvarve_3", "wisc_nonvarve_4"
+# minn_nonvarve_1, minn_nonvarve_2, minn_nonvarve_3
+lake_group <- c("minn_nonvarve_3", "minn_nonvarve_2" ,"minn_nonvarve_1", "wisc_nonvarve_2" ,"wisc_nonvarve_1" ,"wisc_nonvarve_4", "wisc_varve_1" )
+
+
+
+# save all working stepps grids to fs_outputs folder in figures
+for (lake in lake_group){
+  plot_df <- stepps_grid_cells_50yr %>%
+    filter(lake_id == lake) %>%
+    mutate(
+      year = year * 50,
+      ymin = Proportion - SD,
+      ymax = Proportion + SD
+    )
+  
+  taxa_order <- plot_df %>%
+    group_by(Taxa) %>%
+    filter(year == max(year)) %>%
+    ungroup() %>%
+    arrange(desc(Proportion)) %>%
+    pull(Taxa)
+  
+  plot_df <- plot_df %>%
+    mutate(Taxa = factor(Taxa, levels = taxa_order))
+  
+  og_stepps_plot <- ggplot(plot_df,
+         aes(x = -year, y = Proportion,
+             group = Taxa, color = Taxa, fill = Taxa)) +
+    geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, color = NA) +
+    geom_line(linewidth = 1) +
+    xlab("Years before 1950 AD") +
+    ylab("Vegetation Proportion (Out of 1.0)") +
+    expand_limits(x = max(-plot_df$year) * 1.1) +
+    theme_minimal() +
+    labs(title = paste(lake_group, "STEPPS Original Vegetation Reconstruction")) +
+    theme(legend.position = "right")
+    
+  output_dir <- here("figures/fs_outputs")
+  
+  
+ ggsave(og_stepps_plot, file = file.path(output_dir, paste0("og_stepps_", lake, ".png")))
+}
+
+```
+# Find Reference Taxa (Check Overleaf)
+
+```{r}
+# find lot relative abundance: reference taxa = (TAMARACK)
+# want log_prop = log(proportion / Reference Proportion)
+reference_stepps_grid_cells_50yr <- stepps_grid_cells_50yr %>% 
+  group_by(year, lake_id, x_center, y_center) %>% 
   mutate(
-    year = time_bin * 100,
-    ymin = Proportion - SD,
-    ymax = Proportion + SD
-  )
+    taxa_type = case_when(
+      Taxa == "TAMARACK" ~ "reference",
+      TRUE ~ "nonreference"
+    ),
+    reference_prop = Proportion[Taxa == "TAMARACK"][1],
+    log_prop = log(Proportion / reference_prop),
+    
+    reference_sd = SD[Taxa == "TAMARACK"][1],
+    variance = SD^2,
+    
+    # method described in docoument
+    log_var = (SD / Proportion)^2 + (reference_sd / reference_prop)^2,
+    log_sd  = sqrt(log_var)
+    
+  ) %>% 
+  ungroup()
 
-taxa_order <- plot_df %>%
-  group_by(Taxa) %>%
-  filter(time_bin == max(time_bin)) %>%
-  ungroup() %>%
-  arrange(desc(Proportion)) %>%
-  pull(Taxa)
+reference_stepps_grid_cells <- stepps_grid_cells %>% 
+  mutate(
+    year = Time * 100
+  ) %>% 
+  group_by(year, lake_id, x_center, y_center) %>% 
+  mutate(
 
-plot_df <- plot_df %>%
-  mutate(Taxa = factor(Taxa, levels = taxa_order))
-
-ggplot(plot_df,
-       aes(x = -year, y = Proportion,
-           group = Taxa, color = Taxa, fill = Taxa)) +
-  geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, color = NA) +
-  geom_line(linewidth = 1) +
-  xlab("Years before 1950 AD") +
-  ylab("Vegetation Proportion (Out of 1.0)") +
-  expand_limits(x = max(-plot_df$year) * 1.1) +
-  theme_minimal() +
-  labs(title = "STEPPS Original Vegetation Reconstruction") +
-  theme(legend.position = "right")
+    taxa_type = case_when(
+      Taxa == "TAMARACK" ~ "reference",
+      TRUE ~ "nonreference"
+    ),
+    reference_prop = Proportion[Taxa == "TAMARACK"][1],
+    log_prop = log(Proportion / reference_prop),
+    
+    reference_sd = SD[Taxa == "TAMARACK"][1],
+    variance = SD^2,
+    
+    # method described in docoument
+    log_var = (SD / Proportion)^2 + (reference_sd / reference_prop)^2,
+    log_sd  = sqrt(log_var)
+    
+  ) %>% 
+  ungroup()
 ```
 
 # Save Data products
-```{r}
-save(stepps_grid_cells,
-     file = here::here("og_STEPPS_products",
-                       "og_stepps_product_gridcells.RData"))
 
-save(stepps_grid_cells_50yr,
+```{r}
+save(reference_stepps_grid_cells,
      file = here::here("og_STEPPS_products",
-                       "og_50yr_stepps_product_gridcells.RData"))
+                       "reference_stepps_grid_cells.RData"))
+
+save(reference_stepps_grid_cells_50yr,
+     file = here::here("og_STEPPS_products",
+                       "reference_stepps_grid_cells_50yr.RData"))
 ```
 

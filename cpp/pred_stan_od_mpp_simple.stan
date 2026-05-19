@@ -2,7 +2,7 @@
 // // Model ONE lake at ONE grid cell with ONE time series //
 // // 3.19.2026 //
 // 
-// // MAJOR MEMORY ISSUE //
+// // MAJOR MEMORY ISSUE (maybe resolved) //
 // 
 // // Imported from STEPPS - PREDICTION (2/6/2026)
 // //
@@ -53,6 +53,15 @@ data {
 
   int<lower=0> N_p;                // size of P in data file; will be 1 or N
   real P;                          // FIXME: want this to be a matrix OR a real
+  
+  //// ADD STAN ORIGINAL OUTPUTS TO IFNORM THE G LATENT FIELD
+  int<lower=1> N_stepps;              // number of observations
+  array[N_stepps] int cell_idx;      // which grid cell
+  array[N_stepps] int time_idx;      // which time
+  array[N_stepps] int taxa_idx;      // which taxa
+  vector[N_stepps] stepps_mean;      // reference_prop
+  vector<lower=0>[N_stepps] stepps_sd; // reference_sd
+  real tau;
 }
 
 transformed data {
@@ -232,7 +241,20 @@ model {
 
   for (i in 1:N*T)
     r[i,K] = 1 / (1 + sum_exp_g[i]);
+  
+  ///// FINLEY - ADD THE STEPPS ORIGNAL OUTPUT ////////////  
+  for (n in 1:N_stepps) {
+  int i = cell_idx[n];
+  int t = time_idx[n];
+  int k = taxa_idx[n];
 
+  int idx = (i-1)*T + t;
+  
+  ////// tau = tuning parameter
+  stepps_mean[n] ~ normal(r[idx,k], tau * stepps_sd[n]);
+  }
+  ///// FINLEY - END ADD THE STEPPS ORIGNAL OUTPUT //////////// 
+  
   // link to pollen (pollen dispersal + likelihood)
   {
     array[N_cores*T] vector[K] r_new;

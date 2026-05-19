@@ -38,68 +38,37 @@ cmdstanr::cmdstan_version()
 #   N_p _                 # int (declared, unused)
 #   P                      # real scalar
 
-############## input files #################
-
-# MANUALLY CHANGE
-lake_group = "wisc_nonvarve_1"
-# options: "minn_nonvarve", "wisc_varve", "wisc_nonvarve"
-# single lake optoins: "wisc_nonvarve_1" "wisc_nonvarve_2" "wisc_nonvarve_3", "wisc_nonvarve_4"
-# minn_nonvarve_1, minn_nonvarve_2, minn_nonvarve_3
-
-# load in lake group working with:
-if (lake_group == "wisc_varve") {
-  load("runs/wisc_varve_1knots_150to2150ybp_PL_test_grid_specs_wisc_varve_v2.4_ar/run1/input.rdata")
-  
-} else if (lake_group == "wisc_nonvarve"){
-  load("runs/wisc_nonvarve_4knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_v2.4_ar/run1/input.rdata")
-
-} else if (lake_group == "wisc_nonvarve_1"){
-  load("runs/wisc_nonvarve_1_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_1_v2.4_ar/run1/input.rdata")
-
-} else if (lake_group == "wisc_nonvarve_2"){
-  load("runs/wisc_nonvarve_2_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_2_v2.4_ar/run1/input.rdata")
-
-  } else if (lake_group == "wisc_nonvarve_3"){
-  load("runs/wisc_nonvarve_3_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_3_v2.4_ar/run1/input.rdata")
-
-} else if (lake_group == "minn_nonvarve_1"){
-  load("runs/minn_nonvarve_1_1knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_1_v2.4_ar/run1/input.rdata")
-
-} else if (lake_group == "minn_nonvarve_2"){
-    load("runs/minn_nonvarve_2_1knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_2_v2.4_ar/run1/input.rdata")
-
-} else if (lake_group == "minn_nonvarve_3"){
-  load("runs/minn_nonvarve_3_1knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_3_v2.4_ar/run1/input.rdata")
-  
-} else if (lake_group == "wisc_nonvarve_4"){
-  load("runs/wisc_nonvarve_4_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_4_v2.4_ar/run1/input.rdata")
-  
-} else if (lake_group == "minn_nonvarve") {
-  load("runs/minn_nonvarve_3knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_v2.4_ar/run1/input.rdata")
-  
-} else {
-  stop("Unknown lake_group value")
-}
-
-# HAVEN"T YET DEAALT WITH DIFFERENT GRID CELLS
-
 
 ###### LOAD THE ORIGINAL STEPPS DATA PRODUCT
 # GOAL - this data product is used to constraint the other data process
 # temporal, with both mean and SD at 50 year time intervals
 # want to use bayesian model to weight using SD as uncertainty
 
-load("og_STEPPS_products/og_stepps_product_gridcells.RData")
-load("og_STEPPS_products/og_50yr_stepps_product_gridcells.RData")
+load("og_STEPPS_products/reference_stepps_grid_cells.RData")
+load("og_STEPPS_products/reference_stepps_grid_cells_50yr.RData")
+
+stepps_grid_cells_filtered <- reference_stepps_grid_cells %>% filter(
+  lake_id == "wisc_nonvarve_2"
+) %>% mutate(year = year / 100)
+
+# get STEPPS grid cell in right relative formation
+stepps_grid_cells_50yr_filtered <- reference_stepps_grid_cells_50yr %>% filter(
+  lake_id == "wisc_nonvarve_2"
+) %>% 
+  dplyr::mutate(year = year / 50) %>% select(
+  x_center, y_center, lake_id, Taxa, year, reference_prop, reference_sd, taxa_type
+)  %>% 
+  dplyr::rename("T" =  year) %>% 
+  dplyr::mutate(
+    T = T-3
+  ) %>% 
+ dplyr::mutate(
+    time_idx = as.integer(T),
+    taxa_idx = as.integer(factor(Taxa)),
+    cell_idx = as.integer(factor(paste(x_center, y_center)))
+  )
 
 
-stepps_grid_cells_filtered <- stepps_grid_cells %>% filter(
-  lake_id == lake_group
-)
-
-stepps_grid_cells_50yr_filtered <- stepps_grid_cells_50yr %>% filter(
-  lake_id == lake_group
-)
 
 
 ####### input parameters #######
@@ -113,109 +82,234 @@ stepps_grid_cells_50yr_filtered <- stepps_grid_cells_50yr %>% filter(
 ###### compile stan #####
 
 # Compile the model
+
 stan_file <- file.path("cpp/pred_stan_od_mpp_simple.stan")
 mod <- cmdstan_model(stan_file) # now works!
 
+############## input files #################
 
-######### fix 1
-# The stan code appears to have a reference taxa
-# takes rho = k-1, where right now the input params. have rho = k (12)
-# drop the "other" taxa to serve as a reference
-
-stopifnot(length(rho) == K)
-stopifnot(length(eta) == K)
-
-rho <- rho[1:(K-1)]
-eta <- eta[1:(K-1)]
+# MANUALLY CHANGE
+lake_group = "wisc_nonvarve_1"
 
 
-########## fix 2
-# check if the data contains a NA or missing value or an infemum
+lake_groups <- c("minn_nonvarve", "wisc_varve", "wisc_nonvarve", "wisc_nonvarve_1", "wisc_nonvarve_2" ,"wisc_nonvarve_3", "wisc_nonvarve_4" ,
+                 "minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3")
+
+single_lake_groups <- c("wisc_nonvarve_1", "wisc_nonvarve_2" ,"wisc_nonvarve_3", "wisc_nonvarve_4" ,
+                        "minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3")
+
+for (lake in lake_groups) {
+  # load in lake group working with:
+  if (lake_group == "wisc_varve") {
+    load("runs/wisc_varve_1knots_150to2150ybp_PL_test_grid_specs_wisc_varve_v2.4_ar/run1/input.rdata")
+  } else if (lake_group == "wisc_nonvarve"){
+    load("runs/wisc_nonvarve_4knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_v2.4_ar/run1/input.rdata")
+  } else if (lake_group == "wisc_nonvarve_1"){
+    load("runs/wisc_nonvarve_1_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_1_v2.4_ar/run1/input.rdata")
+  } else if (lake_group == "wisc_nonvarve_2"){
+    load("runs/wisc_nonvarve_2_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_2_v2.4_ar/run1/input.rdata")
+  } else if (lake_group == "wisc_nonvarve_3"){
+    load("runs/wisc_nonvarve_3_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_3_v2.4_ar/run1/input.rdata")
+  } else if (lake_group == "minn_nonvarve_1"){
+    load("runs/minn_nonvarve_1_1knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_1_v2.4_ar/run1/input.rdata")
+  } else if (lake_group == "minn_nonvarve_2"){
+      load("runs/minn_nonvarve_2_1knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_2_v2.4_ar/run1/input.rdata")
+  } else if (lake_group == "minn_nonvarve_3"){
+    load("runs/minn_nonvarve_3_1knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_3_v2.4_ar/run1/input.rdata")
+  } else if (lake_group == "wisc_nonvarve_4"){
+    load("runs/wisc_nonvarve_4_1knots_150to2150ybp_PL_test_grid_specs_wisc_nonvarve_4_v2.4_ar/run1/input.rdata")
+  } else if (lake_group == "minn_nonvarve") {
+    load("runs/minn_nonvarve_3knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_v2.4_ar/run1/input.rdata")
+  } else {
+    stop("Unknown lake_group value")
+  }
+  }
+
+
+########## RUN STAN ON LOOP FOR ALL SINGLE LAKES################################ 
+
 check_bad <- function(x, name) {
-  if (any(is.na(x)))  cat(name, "contains NA\n")
+  if (any(is.na(x))) cat(name, "contains NA\n")
   if (any(is.nan(x))) cat(name, "contains NaN\n")
   if (any(is.infinite(x))) cat(name, "contains Inf\n")
 }
 
-check_bad(rho, "rho")
-check_bad(eta, "eta")
-check_bad(phi, "phi")
-check_bad(y, "y")
-check_bad(d, "d")
-check_bad(d_knots, "d_knots")
-check_bad(d_inter, "d_inter")
-check_bad(w, "w")
-check_bad(P, "P")
-check_bad(gamma, "gamma")
 
-gamma = mean(gamma)
+############## main loop #################
 
-# issue seems to be that the original stsan model expected gamma = scalar
-# changed gamma to be vector, calling gamme[K] since taxa-specific
+for (lake in single_lake_groups) {
+  lake = "wisc_nonvarve_1"
+  
+  message("\n==============================")
+  message("Running lake group: ", lake)
+  message("==============================\n")
+  
+  base_path <- paste0(
+    "runs/",
+    lake,
+    "_1knots_150to2150ybp_PL_test_grid_specs_",
+    lake,
+    "_v2.4_ar/run1/input.rdata"
+  )
+  
+  # special cases
+  if (lake == "minn_nonvarve") {
+    base_path <- "runs/minn_nonvarve_3knots_150to2150ybp_PL_test_grid_specs_minn_nonvarve_v2.4_ar/run1/input.rdata"
+  }
+  
+  if (!file.exists(base_path)) {
+    stop("Missing file for lake: ", lake, "\nPath: ", base_path)
+  }
+  
+  # load files
+  load(base_path)
+  
+  # preprocessing
+  stopifnot(length(rho) == K)
+  stopifnot(length(eta) == K)
+  
+  rho <- rho[1:(K - 1)]
+  eta <- eta[1:(K - 1)]
+  
+  check_bad(rho, "rho")
+  check_bad(eta, "eta")
+  check_bad(phi, "phi")
+  check_bad(y, "y")
+  check_bad(d, "d")
+  check_bad(d_knots, "d_knots")
+  check_bad(d_inter, "d_inter")
+  check_bad(w, "w")
+  check_bad(P, "P")
+  check_bad(gamma, "gamma")
+  
+  gamma <- mean(gamma)
+  
+  # define weighting matrix
+  if (lake %in% c("minn_nonvarve", "wisc_varve")) {
+    w <- matrix(1, nrow = 3, ncol = 1)
+  } else if (lake == "wisc_nonvarve") {
+    w <- matrix(1, nrow = 4, ncol = 1)
+  } else {
+    w <- matrix(1, nrow = 1, ncol = 1)
+  }
+  
+  # STEPPS parameters
+  stepps_df <- stepps_grid_cells_50yr_filtered
+  
+  N_stepps   <- nrow(stepps_df)
+  
+  stepps_mean <- stepps_df$reference_prop
+  stepps_sd   <- stepps_df$reference_sd
+  
+  cell_idx <- stepps_df$cell_idx
+  time_idx <- stepps_df$time_idx
+  taxa_idx <- stepps_df$taxa_idx
+  
+  # run model
+  fit <- mod$sample(
+    data = list(
+      K = K,
+      N = N,
+      T = T,
+      N_knots = N_knots,
+      N_cores = N_cores,
+      y = y,
+      rho = rho,
+      eta = eta,
+      gamma = gamma,
+      phi = phi,
+      idx_cores = idx_cores,
+      d = d,
+      d_knots = d_knots,
+      d_inter = d_inter,
+      w = w,
+      P = P,
+      lag = lag,
+      N_p = N_p,
+      
+      # new stepps inputs
+      N_stepps = N_stepps,
+      stepps_mean = stepps_mean,
+      stepps_sd = stepps_sd,
+      cell_idx = cell_idx,
+      time_idx = time_idx,
+      taxa_idx = taxa_idx,
+      tau = 1 
+    ),
+    chains = 1,
+    parallel_chains = 4, # coukd also be 1
+    iter_warmup = 1000,
+    iter_sampling = 100,
+    output_dir = "/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs"
+  )
+  
+  fit <- fit$summary()
+  
 
-########## fix 3
-# variable name = w
-# dims declared = (199, 6378)
-
-# choice, remove 12 w = (12, 199, 6378)
-
-# FINLEY - Come back to this
-# reduces information by taxa (declared (1,17), found (12,1, 127)[...])
-# w <- matrix(1, nrow = 1, ncol = 1)###### getting non-posistve definite matrix , having issues with it sampeling across space
-w <- matrix(1, nrow = 3, ncol = 1) 
-
-# print(rho)
-# summary(rho)        # check for very small or huge values
-# summary(d_knots)    # check for zeros or Inf/NaN
-w
-
-########## RUN STAN 
-# Run the model
-fit_wisc_nonvarve <- mod$sample(
-  data = list(
-    K = K,
-    N = N,
-    T = T,
-    N_knots = N_knots,
-    N_cores = N_cores,
-    y = y,
-    rho = rho,
-    eta = eta,
-    gamma = gamma,
-    phi = phi,
-    idx_cores = idx_cores,
-    d = d,
-    d_knots = d_knots,
-    d_inter = d_inter,
-    w = w,
-    P = P, 
-    # psi, 
-    lag = lag, # not used
-    N_p = N_p # not used
-  ),
-  chains = 4,
-  parallel_chains = 1,
-  iter_warmup = 1000,
-  iter_sampling = 10,
+  # save to computer 
   output_dir = "/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs"
-)
-
-#### check outputs!!!! #####
-
-fit_wisc_nonvarve$draws()
-fit_wisc_nonvarve$draws(format = "df")
-(fit_wisc_nonvarve$summary())$variable
-fit_wisc_nonvarve$diagnostic_summary()
-
-fit_wisc_nonvarve_sum <- fit_wisc_nonvarve$summary()  
-head(fit_wisc_nonvarve_sum)
-# Check the column names
-colnames(fit_wisc_nonvarve_sum)
+  write.csv(
+    fit,
+    file = file.path(output_dir, paste0("fit_", lake, ".csv")),
+    row.names = FALSE
+  )
+}
 
 
-setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs")
-write.csv(fit_wisc_nonvarve_sum, "fit_wisc_nonvarve_sum", row.names = FALSE)
 
+############ # Run the model for one lake#######################################
+#   mod_name <- mod$sample(
+#     data = list(
+#       K = K,
+#       N = N,
+#       T = T,
+#       N_knots = N_knots,
+#       N_cores = N_cores,
+#       y = y,
+#       rho = rho,
+#       eta = eta,
+#       gamma = gamma,
+#       phi = phi,
+#       idx_cores = idx_cores,
+#       d = d,
+#       d_knots = d_knots,
+#       d_inter = d_inter,
+#       w = w,
+#       P = P, 
+#       # psi, 
+#       lag = lag, # not used
+#       N_p = N_p # not used
+#     ),
+#     chains = 4,
+#     parallel_chains = 1,
+#     iter_warmup = 1000,
+#     iter_sampling = 10,
+#     output_dir = "/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs"
+#   )
+#   
+#   fit_[lake] <- mod_name$summary()  
+#   
+#   
+#   setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs")
+#   write.csv(fit_[lake], "fit_", lake, row.names = FALSE)
+
+# 
+# #### check outputs!!!! #####
+# 
+# # fit_wisc_nonvarve$draws()
+# # fit_wisc_nonvarve$draws(format = "df")
+# # (fit_wisc_nonvarve$summary())$variable
+# # fit_wisc_nonvarve$diagnostic_summary()
+# 
+# fit_wisc_nonvarve_sum <- fit_wisc_nonvarve$summary()  
+# # head(fit_wisc_nonvarve_sum)
+# # Check the column names
+# # colnames(fit_wisc_nonvarve_sum)
+# 
+# 
+# setwd("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs")
+# write.csv(fit_wisc_nonvarve_sum, "fit_wisc_nonvarve_sum", row.names = FALSE)
+# 
 
 
 ##### CURRENT STATUS ######

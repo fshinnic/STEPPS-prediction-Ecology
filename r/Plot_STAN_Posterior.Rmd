@@ -15,6 +15,7 @@ library(tidyr)
 library(ggplot2)
 library(ggrepel)
 library(stringr)
+library(here)
 library(posterior)
 
 ```
@@ -24,12 +25,17 @@ library(posterior)
 ```{r}
 # using wight = 1
 #data_posterior <- sum_df_one
-fit_w_one_v2 <- read.csv("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs/stan_simple_varve_v2")
-data_posterior <- fit_w_one_v2
-
-# using weight = 1, and outping r_new
-fit_w_one_v4 <- read.csv("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs/stan_simple_varve_v4")
-data_posterior <- fit_w_one_v4
+# fit_w_one_v2 <- read.csv("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs/stan_simple_varve_v2")
+# data_posterior <- fit_w_one_v2
+# 
+# # using weight = 1, and outping r_new
+# fit_w_one_v4 <- read.csv("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs/stan_simple_varve_v4")
+# 
+# 
+# 
+# fit_minn_nonvarve_1 <- read.csv("/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs/fit_minn_nonvarve_1.csv")
+# 
+# data_posterior <- fit_minn_nonvarve_1
 
 # define look up table: 
 taxa_names <- c("ash","beech","birch","elm","hemlock","maple","oak","other.conifer","other.hardwood","pine","spruce","tamarack") 
@@ -39,32 +45,144 @@ taxa_names <- c("ash","beech","birch","elm","hemlock","maple","oak","other.conif
 # Plot g[k,t]; log latent abundance
 
 ```{r}
-g_long <- data_posterior %>%
-  filter(str_detect(variable, "^g\\[")) %>%
-  mutate(
-    k = as.integer(str_extract(variable, "(?<=g\\[)\\d+")),
-    t = as.integer(str_extract(variable, "(?<=,)\\d+"))
-  ) %>%
-  mutate(
-    taxon_name = factor(taxa_names[k], levels = taxa_names)
-  )
+lake_groups <- c("wisc_nonvarve_1", "wisc_nonvarve_2" ,"wisc_nonvarve_3", "wisc_nonvarve_4" ,"minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3")
 
-label_df <- g_long %>%
-  group_by(taxon_name) %>%
-  filter(t == max(t)) %>%   # get last time point for each Taxa
-  ungroup() %>%
-  arrange(desc(mean))       # order by final proportion (high → low)
+# list of lake groups that are in unique stepps grid cells
+single_lake_groups <- c("wisc_nonvarve_1", "wisc_nonvarve_2" ,"wisc_nonvarve_3", "wisc_nonvarve_4" ,
+                        "minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3")
 
-taxa_order <- label_df$taxon_name
-
-g_long$taxon_name <- factor(g_long$taxon_name,
-                                    levels = taxa_order)
-
-ggplot(g_long, aes(x = -t, y = mean, color = factor(taxon_name))) +
-  geom_line(size = 1.2) +
+for (lake in single_lake_groups) {
   
-  labs(title = "Latent log-abundance (g)", color = "Taxon") +
-  theme(legend.position = "none") + theme_minimal()
+  # ---- Progress message ----
+  message("\n==============================")
+  message("Running lake group: ", lake)
+  message("==============================\n")
+  
+  
+  # ---- Build file path to posterior CSV ----
+  base_path <- here::here(
+    "data/simple_stan_outputs",
+    paste0("fit_", lake, ".csv")
+  )
+  
+  # ---- Check file exists ----
+  if (!file.exists(base_path)) {
+    stop("Missing file for lake: ", lake, "\nPath: ", base_path)
+  }
+  
+  
+  # ---- Load posterior summary (CSV format) ----
+  data_posterior <- read.csv(base_path)
+  
+  
+  # ============================================================
+  # Extract latent log-abundance g[k,t]
+  # (relative to reference taxon: TAMARACK)
+  # ============================================================
+  
+  g_long <- data_posterior %>%
+    dplyr::filter(stringr::str_detect(variable, "^g\\[")) %>%
+    dplyr::mutate(
+      # extract taxon index k and time index t from "g[k,t]"
+      k = as.integer(stringr::str_extract(variable, "(?<=g\\[)\\d+")),
+      t = as.integer(stringr::str_extract(variable, "(?<=,)\\d+")),
+      
+      # map taxon index to names
+      taxon_name = factor(taxa_names[k], levels = taxa_names),
+      
+      # track lake ID
+      lake = lake,
+      
+      ymin = mean - sd,
+      ymax = sd + mean
+    )
+  
+  
+  
+  # ============================================================
+  # Convert from log-relative scale → proportions
+  # ============================================================
+  
+  g_abs <- g_long %>%
+    dplyr::mutate(
+      exp_g = exp(mean)   # undo log transform
+    ) %>%
+    dplyr::group_by(t) %>%
+    dplyr::mutate(
+      sum_exp = sum(exp_g)  # denominator for normalization
+    ) %>%
+    dplyr::ungroup()
+  
+  
+  # ---- Add reference taxon (TAMARACK) back in ----
+  # It is omitted in g because it is the baseline (log = 0 → exp = 1)
+  
+  tamarack_df <- g_abs %>%
+    dplyr::distinct(t) %>%
+    dplyr::mutate(
+      taxon_name = "TAMARACK",
+      exp_g = 1
+    )
+  
+  
+  # ---- Combine and normalize to proportions ----
+  g_abs_full <- dplyr::bind_rows(g_abs, tamarack_df) %>%
+    dplyr::group_by(t) %>%
+    dplyr::mutate(
+      prop = exp_g / sum(exp_g)
+    ) %>%
+    dplyr::ungroup()
+  
+  
+  # check: proportions sum to 1 
+  check_df <- g_abs_full %>%
+    dplyr::group_by(t) %>%
+    dplyr::summarise(total = sum(prop))
+  
+  # should be ~1
+  print(head(check_df))  
+  
+  
+  # ============================================================
+  # Order taxa by final-time abundance (for cleaner plotting)
+  # ============================================================
+  
+  label_df <- g_long %>%
+    dplyr::group_by(taxon_name) %>%
+    dplyr::filter(t == max(t)) %>%   # last time point
+    dplyr::ungroup() %>%
+    dplyr::arrange(desc(mean))       # highest → lowest
+  
+  taxa_order <- label_df$taxon_name
+  
+  g_long$taxon_name <- factor(g_long$taxon_name, levels = taxa_order)
+  
+  
+  # ============================================================
+  # Plot latent log-abundance (g)
+  # ============================================================
+  
+  p <- ggplot(g_long, aes(x = -t, y = mean,  group = taxon_name, 
+                          color = taxon_name, fill = taxon_name)) +
+    geom_line(size = 1.2) +
+    labs(
+      title = paste("Latent log-abundance (g):", lake),
+      color = "Taxon"
+    ) +
+    geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, color = NA)
+    theme_minimal() +
+    theme(legend.position = "right") 
+    
+  
+  print(p)
+  
+  output_dir <- "figures/fs_outputs"
+
+  ggsave(
+    filename = file.path(here::here(output_dir), paste0("modeled_stepps_g_sd_", lake, ".png")),
+    plot = p
+)
+}
 
 ```
 
