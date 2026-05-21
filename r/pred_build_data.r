@@ -341,7 +341,11 @@ if (lake_group == "wisc_varve") {
   ), ncol = 2, byrow = TRUE)
   
 } else if (lake_group == "wisc_nonvarve") {
-  
+  # sitename        x       y      lat      long
+  # 1   LonestarLake 295730.5 1080402 45.93200 -92.36500
+  # 31  HellHoleLake 305160.3 1063040 45.78657 -92.21898
+  # 69      LilyLake 302421.0 1076170 45.90100 -92.27300
+  # 104    FerryLake 315188.8 1087291 46.01300 -92.12500
   pollen_locs <- matrix(c(
     295730.5, 1080402,
     305160.3, 1063040,
@@ -358,14 +362,12 @@ if (lake_group == "wisc_varve") {
   ), ncol = 2, byrow = TRUE)
   
 } else if (lake_group == "wisc_nonvarve_1") {
-  #lonestarLake
-  pollen_locs <- matrix(c(295730.5, 1080402), ncol = 2, byrow = TRUE)
+  #lonestarLake and lilylake
+  pollen_locs <- matrix(c(295730.5, 1080402,
+                          302421.0, 1076170), ncol = 2, byrow = TRUE)
 } else if (lake_group == "wisc_nonvarve_2") {
   #HellHoleLake
   pollen_locs <- matrix(c(305160.3, 1063040), ncol = 2, byrow = TRUE)
-} else if (lake_group == "wisc_nonvarve_3") {
-  #LilyLake
-  pollen_locs <- matrix(c( 302421.0, 1076170), ncol = 2, byrow = TRUE)
 } else if (lake_group == "wisc_nonvarve_4") {
   # FerryLake
   pollen_locs <- matrix(c(315188.8, 1087291 ), ncol = 2, byrow = TRUE)
@@ -386,16 +388,28 @@ if (lake_group == "wisc_varve") {
 meta_sub <- meta %>% dplyr::filter(state2 %in% states_pls)
 
 # convert to dataframe
-if (lake_group %in% c("wisc_nonvarve_1", "wisc_nonvarve_2" ,"wisc_nonvarve_3", "wisc_nonvarve_4",
+if (lake_group %in% c("wisc_nonvarve_1", "wisc_nonvarve_2" , "wisc_nonvarve_4",
                       "minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3")){
   
-  # distances from all grid cells to pollen location
+  # pollen_locs_1 <- pollen_locs %>% slice(1)
+  # 
+  # # distances from all grid cells to pollen location
+  # dists <- rdist(meta_sub[, c("x","y")], pollen_locs)
+  # 
+  # # find closest grid cell (since only working with one lake)
+  # idx <- which.min(dists)
+  # 
+  # domain <- meta_sub[idx, c("x","y"), drop = FALSE]
+  # coarse_centers <- domain
+  
+  
+  # MAY NEED TO REVERT
   dists <- rdist(meta_sub[, c("x","y")], pollen_locs)
   
-  # find closest grid cell (since only working with one lake)
-  idx <- which.min(dists)
+  # convert to “is within any lake influence”
+  min_dist <- apply(dists, 1, min)
   
-  domain <- meta_sub[idx, c("x","y"), drop = FALSE]
+  domain <- meta_sub[min_dist == min(min_dist), c("x","y")]
   coarse_centers <- domain
   
 } else {
@@ -458,7 +472,7 @@ pollen_ts2 = pollen_to_albers(pollen_ts1)
 # common and site mane
 lake_lookup <- data.frame(
   lake_group_1 = c(
-    "wisc_nonvarve_1", "wisc_nonvarve_2", "wisc_nonvarve_3", "wisc_nonvarve_4",
+    "wisc_nonvarve_1", "wisc_nonvarve_2", "wisc_nonvarve_1", "wisc_nonvarve_4",
     "minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3"
   ),
   sitename = c(
@@ -466,21 +480,24 @@ lake_lookup <- data.frame(
     "HostageLake", "MudLake", "OzawindibLake"
   )
 )
-
 # filter to only keep the locations with the given lakes
-if (lake_group %in% c("wisc_nonvarve_1", "wisc_nonvarve_2", "wisc_nonvarve_3", "wisc_nonvarve_4",
+if (lake_group %in% c("wisc_nonvarve_1", "wisc_nonvarve_2", "wisc_nonvarve_4",
     "minn_nonvarve_1", "minn_nonvarve_2", "minn_nonvarve_3")) {# common and sitename
-  # see working lake name
+  # get all lakes in this group
   lake_name <- lake_lookup %>%
     dplyr::filter(lake_group_1 == lake_group) %>%
     dplyr::pull(sitename) %>%
     unique()
   
-  if (length(lake_name) != 1) stop("Lake group does not map to exactly one sitename")
+  # safety check: must have at least 1 lake
+  if (length(lake_name) < 1) {
+    stop("Lake group does not map to any sitename")
+  }
   
-  # filter to include working lake
+  # filter pollen data
   pollen_ts2 <- pollen_ts2 %>%
-    dplyr::filter(sitename %in% lake_name)}
+    dplyr::filter(sitename %in% lake_name)
+  }
     
 
 # FS - location of pollen

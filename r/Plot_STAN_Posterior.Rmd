@@ -62,7 +62,7 @@ for (lake in single_lake_groups) {
   # ---- Build file path to posterior CSV ----
   base_path <- here::here(
     "data/simple_stan_outputs",
-    paste0("fit_", lake, ".csv")
+    paste0("fit_", lake, "with_stan_3tau.csv")
   )
   
   # ---- Check file exists ----
@@ -169,7 +169,7 @@ for (lake in single_lake_groups) {
       title = paste("Latent log-abundance (g):", lake),
       color = "Taxon"
     ) +
-    geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, color = NA)
+   # geom_ribbon(aes(ymin = ymin, ymax = ymax), alpha = 0.2, color = NA) +
     theme_minimal() +
     theme(legend.position = "right") 
     
@@ -179,7 +179,7 @@ for (lake in single_lake_groups) {
   output_dir <- "figures/fs_outputs"
 
   ggsave(
-    filename = file.path(here::here(output_dir), paste0("modeled_stepps_g_sd_", lake, ".png")),
+    filename = file.path(here::here(output_dir), paste0("modeled_stepps_3_tau_", lake, ".png")),
     plot = p
 )
 }

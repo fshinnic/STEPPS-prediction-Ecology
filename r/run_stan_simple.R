@@ -234,7 +234,7 @@ for (lake in single_lake_groups) {
       cell_idx = cell_idx,
       time_idx = time_idx,
       taxa_idx = taxa_idx,
-      tau = 1 
+      tau = 3
     ),
     chains = 1,
     parallel_chains = 4, # coukd also be 1
@@ -242,7 +242,7 @@ for (lake in single_lake_groups) {
     iter_sampling = 100,
     output_dir = "/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs"
   )
-  
+  # Warning: 1 of 1 chains had an E-BFMI less than 0.3.
   fit <- fit$summary()
   
 
@@ -250,7 +250,7 @@ for (lake in single_lake_groups) {
   output_dir = "/Users/finleyjean/Documents/STEPPS-prediction-Ecology/data/simple_stan_outputs"
   write.csv(
     fit,
-    file = file.path(output_dir, paste0("fit_", lake, ".csv")),
+    file = file.path(output_dir, paste0("fit_", lake, "with_stan_3tau.csv")),
     row.names = FALSE
   )
 }

@@ -11,12 +11,18 @@ knitr::opts_chunk$set(echo = TRUE)
 
 The following code finds the STEPPS grid cells that the working lakes are in. It extracts these grid cells, and pulls the proportions of each taxa present in those grid cells (also pulls SD). 
 
+It then plots the vegetation mean change with SD for each unique grid cell group
+
+Finally, it recomputes the mean and SD interms of the relative taxa (TAMARACK) using equations that can be found in the overleaf accompyaning document.
+
 Data Input
 - lakes_stepps.RData #
 
 Data Output
 - og_50yr_stepps_product_gridcells.RData # in the og_STEPPS_Products file (temporal average)
 - og_stepps_product_gridcells # in the og_STEPPS_Products files
+- Plots for each grid cell # figures/fs_outputs
+
 ## Functions
 
 ```{r}
@@ -77,27 +83,28 @@ make_locs <- function(mat) {
     setNames(c("x", "y"))
 }
 
-# define coordinates of lakes we want to extract stepps data from
-pollen_locs <- list(
-  wisc_varve = make_locs(matrix(c(
-    358152.4, 1001003,
-    356758.9, 1000213,
-    356204.7, 1001203
-  ), ncol = 2, byrow = TRUE)),
-  
-  wisc_nonvarve = make_locs(matrix(c(
-    295730.5, 1080402,
-    305160.3, 1063040,
-    302421.0, 1076170,
-    315188.8, 1087291
-  ), ncol = 2, byrow = TRUE)),
-  
-  minn_nonvarve = make_locs(matrix(c(
-    169181.33, 1165575,
-    127450.70, 1207032,
-    94360.15, 1252942
-  ), ncol = 2, byrow = TRUE))
+make_locs <- function(df) {
+  df %>% dplyr::rename(x = x, y = y)
+}
+
+wisc_nonvarve_df <- tibble::tibble(
+  sitename = c("LonestarLake", "HellHoleLake", "LilyLake", "FerryLake"),
+  x = c(295730.5, 305160.3, 302421.0, 315188.8),
+  y = c(1080402, 1063040, 1076170, 1087291)
 )
+
+wisc_varve_df <- tibble::tibble(
+  sitename = c("RubyLake", "DarkLake", "LittlePineLake"),  # replace with real names if you have them
+  x = c(358152.4, 356758.9, 356204.7),
+  y = c(1001003, 1000213, 1001203)
+)
+
+minn_nonvarve_df <- tibble::tibble(
+  sitename = c("HostageLake", "MudLake", "OzawindibLake"),
+  x = c(169181.33, 127450.70, 94360.15),
+  y = c(1165575, 1207032, 1252942)
+)
+
 
 # assign ids to grid cells to see what each lake falls into
 # give each lake location a different ID for not (will be reduced later)
@@ -105,6 +112,7 @@ assign_cell_id <- function(lakes, grid, prefix) {
   out <- lapply(seq_len(nrow(lakes)), function(i) {
     x <- lakes$x[i]
     y <- lakes$y[i]
+    name <- lakes$sitename[i]
     
     idx <- which(
       x >= grid$x_min & x < grid$x_max &
@@ -112,18 +120,22 @@ assign_cell_id <- function(lakes, grid, prefix) {
     )
     
     grid[idx, ] %>%
-      mutate(lake_id = paste0(prefix, "_", i))
+      mutate(
+        lake_id = paste0(prefix, "_", i),
+        sitename = name
+      )
   })
   
-  bind_rows(out)
+  dplyr::bind_rows(out)
 }
 
 # run function
 lake_cells <- bind_rows(
-  assign_cell_id(pollen_locs$wisc_varve, grid_cells, "wisc_varve"),
-  assign_cell_id(pollen_locs$wisc_nonvarve, grid_cells, "wisc_nonvarve"),
-  assign_cell_id(pollen_locs$minn_nonvarve, grid_cells, "minn_nonvarve")
+  assign_cell_id(wisc_varve_df, grid_cells, "wisc_varve"),
+  assign_cell_id(wisc_nonvarve_df, grid_cells, "wisc_nonvarve"),
+  assign_cell_id(minn_nonvarve_df, grid_cells, "minn_nonvarve")
 )
+
 
 # only keep discintint grid cells
 grid_keep <- lake_cells %>%
@@ -158,6 +170,7 @@ all_df_reduced <- all_df %>%
 
 # see how many unique STEPPS grid cells we have
 unique(all_df_reduced$lake_id)
+
 
 ```
 
@@ -409,10 +422,10 @@ for (lake in lake_group){
     ylab("Vegetation Proportion (Out of 1.0)") +
     expand_limits(x = max(-plot_df$year) * 1.1) +
     theme_minimal() +
-    labs(title = paste(lake_group, "STEPPS Original Vegetation Reconstruction")) +
+    labs(title = paste(lake, "STEPPS Original Vegetation Reconstruction")) +
     theme(legend.position = "right")
     
-  output_dir <- here("figures/fs_outputs")
+  output_dir <- here::here("figures/fs_outputs")
   
   
  ggsave(og_stepps_plot, file = file.path(output_dir, paste0("og_stepps_", lake, ".png")))
