@@ -14,7 +14,7 @@
 
 ################################IMPORANT ################################################
 # CHANGE WHAT LAKES TO RUN ON
-lake_group = "wisc_nonvarve_1"  
+lake_group = "minn_nonvarve"  
 # lake group options: "wisc_varve", "wisc_nonvarve", "minn_nonvarve"
 # single lake optoins: "wisc_nonvarve_1" "wisc_nonvarve_2" "wisc_nonvarve_4"
 # minn_nonvarve_1, minn_nonvarve_2, minn_nonvarve_3

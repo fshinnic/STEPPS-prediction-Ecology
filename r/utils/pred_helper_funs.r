@@ -988,7 +988,7 @@ build_pollen_counts <- function(tmin, tmax, int,
           # Store metadata for this sample
           meta_all_row <- meta_pol[age_rows, , drop = FALSE]
           # age in centuries / 100 years
-          meta_all_row$age <- age / 100
+         # meta_all_row$age <- age / 100
           meta_all_row$age <- age / 50
           meta_all <- rbind(meta_all, meta_all_row)
           
